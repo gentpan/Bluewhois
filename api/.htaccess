@@ -1,0 +1,13 @@
+# Apache 备用路由配置（如果 Nginx 未配置，Apache 可以使用）
+# 注意：如果使用 Nginx，此文件不起作用，需要在 Nginx 中配置路由
+
+# 启用重写引擎
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # API 路由：api/domain.com -> api/index.php?domain=domain.com
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^([^/]+)/?$ index.php?domain=$1 [L,QSA]
+</IfModule>
+

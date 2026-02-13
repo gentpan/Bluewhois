@@ -1,0 +1,11 @@
+.DS_Store
+
+# Runtime files
+cache/
+logs/
+
+# Local editor/system files
+.idea/
+.vscode/
+*.swp
+
