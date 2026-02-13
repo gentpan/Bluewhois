@@ -38,8 +38,32 @@ function makeApiCall($url, $headers = [])
         '/etc/ssl/cert.pem',                    // Alpine Linux
     ];
 
+    $open_basedir = (string)ini_get('open_basedir');
+    $allowed_roots = [];
+    if ($open_basedir !== '') {
+        foreach (explode(PATH_SEPARATOR, $open_basedir) as $root) {
+            $root = trim($root);
+            if ($root === '') continue;
+            $allowed_roots[] = rtrim(str_replace('\\', '/', $root), '/');
+        }
+    }
+
+    $pathAllowed = static function ($path) use ($allowed_roots) {
+        if (empty($allowed_roots)) return true;
+        $normalized = str_replace('\\', '/', $path);
+        foreach ($allowed_roots as $root) {
+            if ($normalized === $root || strpos($normalized, $root . '/') === 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     foreach ($ca_bundle_paths as $path) {
-        if (file_exists($path)) {
+        if (!$pathAllowed($path)) {
+            continue;
+        }
+        if (@is_file($path)) {
             curl_setopt($ch, CURLOPT_CAINFO, $path);
             break;
         }
