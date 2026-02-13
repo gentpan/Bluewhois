@@ -62,7 +62,7 @@
       "api-docs": "API 文档",
       about: "关于",
       contact: "联系",
-      "domain-input-placeholder": "输入域名，如：example.com",
+      "domain-input-placeholder": "输入域名或 IP，如：example.com / 1.1.1.1 / 2606:4700:4700::1111",
       "query-whois": "查询 WHOIS",
       querying: "查询中...",
       "footer-desc": "BlueWhois 提供专业的域名 WHOIS 信息查询服务，结果快速、准确、完整。基于 WhoisXML API、WhoAPI 与 RDAP，支持全球域名查询。",
@@ -81,7 +81,7 @@
       "api-docs": "API Docs",
       about: "About",
       contact: "Contact",
-      "domain-input-placeholder": "Enter domain, e.g: example.com",
+      "domain-input-placeholder": "Enter domain or IP, e.g: example.com / 1.1.1.1 / 2606:4700:4700::1111",
       "query-whois": "Query WHOIS",
       querying: "Querying...",
       "footer-desc": "BlueWhois provides professional WHOIS lookup with fast, accurate, and complete domain registration data. Powered by WhoisXML API, WhoAPI, and RDAP for global TLD coverage.",
@@ -107,13 +107,12 @@
   }
 
   function updateLangButton(lang) {
-    const current = document.getElementById("langCurrent");
-    if (current) {
-      current.textContent = lang === "en" ? "English" : "中文";
+    const toggleBtn = document.getElementById("langToggle");
+    if (toggleBtn) {
+      toggleBtn.setAttribute("data-lang", lang);
+      toggleBtn.setAttribute("aria-label", lang === "en" ? "Switch to Chinese" : "切换到 English");
+      toggleBtn.setAttribute("title", lang === "en" ? "Switch to Chinese" : "切换到 English");
     }
-    document.querySelectorAll("[data-lang-option]").forEach((item) => {
-      item.classList.toggle("active", item.getAttribute("data-lang-option") === lang);
-    });
   }
 
   function updatePageContent(lang) {
@@ -178,31 +177,13 @@
 
   function initLangDropdown() {
     const toggleBtn = document.getElementById("langToggle");
-    const menu = document.getElementById("langMenu");
-    const wrapper = document.getElementById("langDropdown");
-    if (!toggleBtn || !menu || !wrapper) return;
+    if (!toggleBtn) return;
 
     toggleBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      e.stopPropagation();
-      menu.classList.toggle("hidden");
-    });
-
-    document.querySelectorAll("[data-lang-option]").forEach((option) => {
-      option.addEventListener("click", function (e) {
-        e.preventDefault();
-        const nextLang = option.getAttribute("data-lang-option");
-        if (nextLang === "zh" || nextLang === "en") {
-          setLang(nextLang);
-        }
-        menu.classList.add("hidden");
-      });
-    });
-
-    document.addEventListener("click", function (e) {
-      if (!wrapper.contains(e.target)) {
-        menu.classList.add("hidden");
-      }
+      const currentLang = getCurrentLang();
+      const nextLang = currentLang === "en" ? "zh" : "en";
+      setLang(nextLang);
     });
   }
 
@@ -331,20 +312,28 @@
     }
   }
 
-  function generateFaviconUrl(domain) {
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=12`;
+  function generateFaviconUrls(domain) {
+    const encodedDomain = encodeURIComponent(domain);
+    return [
+      `https://www.google.com/s2/favicons?domain=${encodedDomain}&sz=128`,
+      `https://www.google.com/s2/favicons?domain=${encodedDomain}&sz=64`,
+      `https://icon.horse/icon/${domain}`,
+      `https://icons.duckduckgo.com/ip3/${domain}.ico`,
+      `https://${domain}/favicon.ico`,
+      `https://www.google.com/s2/favicons?domain=${encodedDomain}&sz=32`,
+    ];
   }
 
   function createFallbackIcon(text) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", "12");
-    svg.setAttribute("height", "12");
-    svg.setAttribute("viewBox", "0 0 12 12");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("viewBox", "0 0 14 14");
     
     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     rect.setAttribute("fill", "#334155");
-    rect.setAttribute("width", "12");
-    rect.setAttribute("height", "12");
+    rect.setAttribute("width", "14");
+    rect.setAttribute("height", "14");
     svg.appendChild(rect);
     
     const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -353,7 +342,7 @@
     textElement.setAttribute("y", "50%");
     textElement.setAttribute("text-anchor", "middle");
     textElement.setAttribute("dy", ".3em");
-    textElement.setAttribute("font-size", "8");
+    textElement.setAttribute("font-size", "9");
     textElement.textContent = text ? text.charAt(0).toUpperCase() : "•";
     svg.appendChild(textElement);
     
@@ -375,33 +364,61 @@
       }
     }
 
-    if (domain) {
-      img.src = generateFaviconUrl(domain);
-      
-      // 错误处理：加载失败时显示占位符
-      img.addEventListener(
-        "error",
-        function () {
-          // 获取链接文本作为占位符文字
-          const link = this.closest("a");
-          const linkText = link ? (link.title || link.textContent.trim() || domain) : domain;
-          const fallbackChar = linkText.charAt(0).toUpperCase();
-          
-          // 创建 SVG 占位符
-          const svg = createFallbackIcon(fallbackChar);
-          svg.style.display = "inline-block";
-          svg.style.width = "12px";
-          svg.style.height = "12px";
-          
-          // 替换图片
-          if (this.parentNode) {
-            this.parentNode.replaceChild(svg, this);
-            svg.className = "friend-link-icon";
-          }
-        },
-        { once: true }
-      );
-    }
+    if (!domain) return;
+
+    const fallbackToPlaceholder = function (imageEl) {
+      const link = imageEl.closest("a");
+      const linkText = link ? (link.title || link.textContent.trim() || domain) : domain;
+      const fallbackChar = linkText.charAt(0).toUpperCase();
+
+      const svg = createFallbackIcon(fallbackChar);
+      svg.style.display = "inline-block";
+      svg.style.width = "14px";
+      svg.style.height = "14px";
+
+      if (imageEl.parentNode) {
+        imageEl.parentNode.replaceChild(svg, imageEl);
+        svg.className = "friend-link-icon";
+      }
+    };
+
+    const sourceUrls = generateFaviconUrls(domain);
+    let sourceIndex = 0;
+    let settled = false;
+    const minPreferredSize = 24;
+
+    const tryNextSource = function () {
+      if (settled) return;
+      if (sourceIndex >= sourceUrls.length) {
+        settled = true;
+        fallbackToPlaceholder(img);
+        return;
+      }
+      img.src = sourceUrls[sourceIndex++];
+    };
+
+    img.addEventListener("load", function () {
+      if (settled) return;
+      const width = this.naturalWidth || 0;
+      const height = this.naturalHeight || 0;
+      const isHighEnough = width >= minPreferredSize && height >= minPreferredSize;
+
+      // 如果当前源尺寸过小，继续尝试更高清来源
+      if (!isHighEnough && sourceIndex < sourceUrls.length) {
+        tryNextSource();
+        return;
+      }
+
+      settled = true;
+      this.setAttribute("data-favicon-source", this.currentSrc || this.src);
+    });
+
+    img.addEventListener("error", function () {
+      if (settled) return;
+      tryNextSource();
+    });
+
+    tryNextSource();
   }
 
   function initFavicons() {
@@ -566,7 +583,21 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 document.addEventListener("DOMContentLoaded", function () {
   const forms = document.querySelectorAll(".query-form");
+  const resultContainer = document.getElementById("query-result");
   const loadingElement = document.getElementById("loading");
+  const staticRoutes = new Set([
+    "about",
+    "contact",
+    "api-docs",
+    "pages",
+    "api",
+    "assets",
+    "favicon.ico",
+  ]);
+  const isStaticRoute = function (path) {
+    return staticRoutes.has(path.toLowerCase());
+  };
+
   forms.forEach((form) => {
     form.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -580,16 +611,27 @@ document.addEventListener("DOMContentLoaded", function () {
         showNotification("请输入要查询的域名", "error");
         return;
       }
-      const cleanDomain = domain.toLowerCase();
-      if (!isValidDomain(cleanDomain)) {
-        showNotification("请输入有效的域名格式（如 example.com）", "error");
+      const cleanDomain = normalizeQueryTargetInput(domain);
+      if (!isValidQueryTarget(cleanDomain)) {
+        showNotification("请输入有效的域名或 IP（IPv4/IPv6）", "error");
         return;
+      }
+      const domainInputEl = form.querySelector('input[name="domain"]');
+      if (domainInputEl) {
+        domainInputEl.value = cleanDomain;
       }
       window.history.pushState(
         { domain: cleanDomain },
         "",
         "/" + encodeURIComponent(cleanDomain)
       );
+      const suggestionsDiv = document.getElementById("domain-suggestions");
+      if (suggestionsDiv) {
+        suggestionsDiv.classList.add("hidden");
+      }
+      if (typeof window.setQueryButtonLoading === "function") {
+        window.setQueryButtonLoading(true);
+      }
       queryDomain(cleanDomain);
     });
   });
@@ -597,32 +639,37 @@ document.addEventListener("DOMContentLoaded", function () {
   setupCardHoverEffects();
   setupKeyboardShortcuts();
   window.addEventListener("popstate", function (event) {
+    if (!resultContainer) return;
     if (event.state && event.state.domain) {
       queryDomain(event.state.domain);
     } else {
-      const path = window.location.pathname.replace(/^\//, "");
-      if (path && path !== "index.php" && path !== "" && !path.includes(".")) {
-        const domainMatch = path.match(
-          /^([a-zA-Z0-9][a-zA-Z0-9.-]{0,253}[a-zA-Z0-9]?)$/
-        );
-        if (domainMatch) {
-          queryDomain(domainMatch[1]);
+      const path = decodeURIComponent(window.location.pathname.replace(/^\//, ""));
+      if (
+        path &&
+        path !== "index.php" &&
+        path !== "" &&
+        !isStaticRoute(path)
+      ) {
+        if (isValidQueryTarget(path)) {
+          queryDomain(path);
         }
       } else {
-        const resultContainer = document.getElementById("query-result");
-        if (resultContainer) {
-          resultContainer.innerHTML = "";
-        }
+        resultContainer.innerHTML = "";
       }
     }
   });
-  const path = window.location.pathname.replace(/^\//, "");
-  if (path && path !== "index.php" && path !== "" && !path.includes(".")) {
-    const domainMatch = path.match(
-      /^([a-zA-Z0-9][a-zA-Z0-9.-]{0,253}[a-zA-Z0-9]?)$/
-    );
-    if (domainMatch) {
-      queryDomain(domainMatch[1]);
+  if (!resultContainer) {
+    return;
+  }
+  const path = decodeURIComponent(window.location.pathname.replace(/^\//, ""));
+  if (
+    path &&
+    path !== "index.php" &&
+    path !== "" &&
+    !isStaticRoute(path)
+  ) {
+    if (isValidQueryTarget(path)) {
+      queryDomain(path);
     }
   }
 });
@@ -632,14 +679,14 @@ function validateFormData(form, queryType) {
   );
   let isValid = true;
   inputs.forEach((input) => {
-    const value = input.value.trim();
+      const value = input.name === "domain" ? normalizeQueryTargetInput(input.value) : input.value.trim();
     if (!value) {
       showInputError(input, "此字段不能为空");
       isValid = false;
       return;
     } else if (input.name === "domain") {
-      if (!isValidDomain(value)) {
-        showInputError(input, "请输入有效的域名格式（如 example.com）");
+      if (!isValidQueryTarget(value)) {
+        showInputError(input, "请输入有效的域名或 IP（IPv4/IPv6）");
         isValid = false;
       }
     } else if (input.name === "ip") {
@@ -672,21 +719,21 @@ function setupInputValidation() {
   });
 }
 function validateDomainInput(input) {
-  const value = input.value.trim();
+  const value = normalizeQueryTargetInput(input.value);
   clearInputError(input);
   if (value === "") {
     input.classList.remove("invalid", "valid");
     return;
   }
-  const isValid = isValidDomain(value);
+  const isValid = isValidQueryTarget(value);
   input.classList.remove("invalid", "valid");
   input.classList.add(isValid ? "valid" : "invalid");
   if (!isValid) {
-    showInputError(input, "请输入有效的域名格式（如 example.com）");
+    showInputError(input, "请输入有效的域名或 IP（IPv4/IPv6）");
   }
 }
 function validateIPInput(input) {
-  const value = input.value.trim();
+  const value = normalizeQueryTargetInput(input.value);
   clearInputError(input);
   if (value === "") {
     input.classList.remove("invalid", "valid");
@@ -701,7 +748,7 @@ function validateIPInput(input) {
 }
 function isValidDomain(domain) {
   if (typeof domain !== "string") return false;
-  const normalized = domain.trim().toLowerCase().replace(/\.+$/, "");
+  const normalized = normalizeQueryTargetInput(domain);
   if (!normalized || normalized.length > 253) return false;
   if (normalized.includes("..")) return false;
   if (/[\/\\'"`\s]/.test(normalized)) return false;
@@ -720,9 +767,65 @@ function isValidDomain(domain) {
   return /^(xn--[a-z0-9-]{2,59}|[a-z]{2,63})$/i.test(tld);
 }
 function isValidIP(ip) {
-  const ipRegex =
-    /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  return ipRegex.test(ip);
+  if (typeof ip !== "string") return false;
+  const value = normalizeQueryTargetInput(ip);
+  const ipv4 =
+    /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+  if (ipv4.test(value)) return true;
+  if (!value.includes(":")) return false;
+  try {
+    const url = new URL(`http://[${value}]`);
+    return url.hostname.toLowerCase() === `[${value.toLowerCase()}]`;
+  } catch (e) {
+    return false;
+  }
+}
+
+function isValidQueryTarget(value) {
+  const normalized = normalizeQueryTargetInput(value);
+  return isValidDomain(normalized) || isValidIP(normalized);
+}
+
+function normalizeQueryTargetInput(raw) {
+  if (typeof raw !== "string") return "";
+  let value = raw.trim();
+  if (!value) return "";
+
+  value = value.replace(/[\r\n\t]/g, "");
+
+  try {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+      const u = new URL(value);
+      value = u.hostname || value;
+    } else if (/[/?#]/.test(value)) {
+      const u = new URL(`http://${value.replace(/^\/+/, "")}`);
+      value = u.hostname || value;
+    }
+  } catch (e) {
+    // ignore parse error and keep raw
+  }
+
+  value = value.replace(/^\[|\]$/g, "");
+  value = value.replace(/\.+$/, "").toLowerCase();
+
+  if (!isValidIPSimple(value) && value.startsWith("www.")) {
+    value = value.slice(4);
+  }
+  return value;
+}
+
+function isValidIPSimple(value) {
+  if (!value) return false;
+  const ipv4 =
+    /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+  if (ipv4.test(value)) return true;
+  if (!value.includes(":")) return false;
+  try {
+    const url = new URL(`http://[${value}]`);
+    return url.hostname.toLowerCase() === `[${value.toLowerCase()}]`;
+  } catch (e) {
+    return false;
+  }
 }
 function showInputError(input, message) {
   clearInputError(input);
@@ -769,6 +872,21 @@ function setupKeyboardShortcuts() {
   });
 }
 function showLoading() {
+  if (typeof window.setQueryButtonLoading === "function") {
+    window.setQueryButtonLoading(true);
+  } else {
+    const queryButtons = document.querySelectorAll(".query-form .btn-primary");
+    queryButtons.forEach((button) => {
+      const content = button.querySelector(".query-button-content");
+      const loading = button.querySelector(".query-button-loading");
+      if (content && loading) {
+        content.classList.add("hidden");
+        loading.classList.remove("hidden");
+        button.disabled = true;
+      }
+    });
+  }
+
   const loadingElement = document.getElementById("loading");
   if (loadingElement) {
     loadingElement.classList.remove("hidden");
@@ -776,6 +894,21 @@ function showLoading() {
   }
 }
 function hideLoading() {
+  if (typeof window.setQueryButtonLoading === "function") {
+    window.setQueryButtonLoading(false);
+  } else {
+    const queryButtons = document.querySelectorAll(".query-form .btn-primary");
+    queryButtons.forEach((button) => {
+      const content = button.querySelector(".query-button-content");
+      const loading = button.querySelector(".query-button-loading");
+      if (content && loading) {
+        content.classList.remove("hidden");
+        loading.classList.add("hidden");
+        button.disabled = false;
+      }
+    });
+  }
+
   const loadingElement = document.getElementById("loading");
   if (loadingElement) {
     loadingElement.classList.add("hidden");
@@ -864,144 +997,145 @@ function fallbackCopyTextToClipboard(text) {
   }
   document.body.removeChild(textArea);
 }
-function queryDomain(domain) {
-  if (!domain) {
+function queryDomain(domain, options = {}) {
+  const normalizedTarget = normalizeQueryTargetInput(String(domain || ""));
+  if (!normalizedTarget) {
     showNotification("请输入域名", "error");
     return;
   }
-  showLoading();
+  const forceRefresh = !!(options && options.forceRefresh);
+
   const resultContainer = document.getElementById("query-result");
   if (!resultContainer) {
     console.error("找不到结果容器");
+    showNotification("页面容器异常，请刷新后重试", "error");
     return;
   }
+
+  showLoading();
   resultContainer.innerHTML = "";
   const startTime = performance.now();
-  // 首先尝试新 API
-  fetch(`/api/${encodeURIComponent(domain)}`, {
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+  const REQUEST_TIMEOUT_MS = 35000;
+
+  const fetchJsonWithTimeout = async (url) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        signal: controller.signal,
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await response.text();
+        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+          throw new Error("API_HTML_RESPONSE");
+        }
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error("API_INVALID_JSON");
+        }
       }
-    })
-    .then((response) => {
-      // 检查 Content-Type，确保返回的是 JSON
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        return response.text().then(text => {
-          // 如果返回的是 HTML（通常是美化页面），使用旧 API
-          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-            throw new Error('API_HTML_RESPONSE');
-          }
-          // 尝试解析为 JSON（某些服务器可能没有设置正确的 Content-Type）
-          try {
-            return JSON.parse(text);
-          } catch (e) {
-            throw new Error('API_INVALID_JSON');
-          }
-        });
-      }
-      
+
       if (!response.ok) {
-        // 对于 API 的 JSON 错误响应，直接透传给 UI 显示（比如未注册/格式错误）
         return response.json().catch(() => {
           throw new Error(`HTTP ${response.status}`);
         });
       }
+
       return response.json();
-    })
-    .then((result) => {
-      hideLoading();
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        throw new Error("API_TIMEOUT");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  (async () => {
+    try {
+      const apiUrl = `/api/${encodeURIComponent(normalizedTarget)}${
+        forceRefresh ? "?refresh=1" : ""
+      }`;
+      const result = await fetchJsonWithTimeout(apiUrl);
       const queryTime = ((performance.now() - startTime) / 1000).toFixed(2);
       if (result.success && result.data) {
-        displayWhoisResult(
-          result.data,
-          result.domain,
-          result.api_used,
-          queryTime
-        );
+        displayWhoisResult(result.data, normalizedTarget, result.api_used, queryTime, {
+          cached: !!result.cached,
+          cacheTime: result.cache_time || null,
+        });
       } else {
-        displayError(result.error || "查询失败", domain);
+        displayError(result.error || "查询失败", normalizedTarget);
       }
-    })
-    .catch((error) => {
+      return;
+    } catch (error) {
       console.error("新 API 请求失败:", error);
-      
-      // 检测是否应该回退到旧 API
-      const shouldFallback = 
-        error.message === 'API_NOT_FOUND' ||
-        error.message === 'API_HTML_RESPONSE' ||
-        error.message === 'API_INVALID_JSON' ||
-        (error.message && error.message.includes('404')) ||
-        (error.message && error.message.includes('HTML'));
-      
-      if (shouldFallback) {
-        // 自动回退到旧 API
-        console.log('自动回退到旧 API: /whois.php?mode=api&domain=' + domain);
-        return fetch(`/whois.php?mode=api&domain=${encodeURIComponent(domain)}`, {
-          headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        })
-        .then((response) => {
-          const contentType = response.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            return response.text().then(text => {
-              if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-                throw new Error('旧 API 也返回了 HTML');
-              }
-              try {
-                return JSON.parse(text);
-              } catch (e) {
-                throw new Error(`旧 API 返回无效格式: ${text.substring(0, 100)}...`);
-              }
-            });
-          }
-          if (!response.ok) {
-            return response.json().catch(() => {
-              throw new Error(`旧 API HTTP ${response.status}`);
-            });
-          }
-          return response.json();
-        })
-        .then((result) => {
-          hideLoading();
-          const queryTime = ((performance.now() - startTime) / 1000).toFixed(2);
-          if (result.success && result.data) {
-            displayWhoisResult(
-              result.data,
-              result.domain,
-              result.api_used,
-              queryTime
-            );
-            // 显示提示：使用了旧 API
-            showNotification('已自动切换到备用 API', 'info');
-          } else {
-            displayError(result.error || "查询失败", domain);
-          }
-        })
-        .catch((fallbackError) => {
-          hideLoading();
-          console.error("旧 API 也失败:", fallbackError);
-          displayError(
-            "API 路由未配置，且旧 API 也无法访问。\n\n" +
+
+      const msg = String(error && error.message ? error.message : "");
+      const shouldFallback =
+        msg === "API_TIMEOUT" ||
+        msg === "API_NOT_FOUND" ||
+        msg === "API_HTML_RESPONSE" ||
+        msg === "API_INVALID_JSON" ||
+        msg.includes("404") ||
+        msg.includes("HTML");
+
+      if (!shouldFallback) {
+        if (msg === "API_TIMEOUT") {
+          displayError("请求超时，请稍后重试", domain);
+        } else {
+          displayError("网络错误，请稍后重试", domain);
+        }
+        return;
+      }
+      if (msg === "API_TIMEOUT") {
+        showNotification("主 API 超时，已自动切换备用接口", "warning");
+      }
+    }
+
+    try {
+      console.log("自动回退到旧 API: /whois.php?mode=api&domain=" + normalizedTarget);
+      const fallbackUrl = `/whois.php?mode=api&domain=${encodeURIComponent(normalizedTarget)}${
+        forceRefresh ? "&refresh=1" : ""
+      }`;
+      const result = await fetchJsonWithTimeout(
+        fallbackUrl
+      );
+      const queryTime = ((performance.now() - startTime) / 1000).toFixed(2);
+      if (result.success && result.data) {
+        displayWhoisResult(result.data, normalizedTarget, result.api_used, queryTime, {
+          cached: !!result.cached,
+          cacheTime: result.cache_time || null,
+        });
+        showNotification("已自动切换到备用 API", "info");
+      } else {
+        displayError(result.error || "查询失败", normalizedTarget);
+      }
+    } catch (fallbackError) {
+      console.error("旧 API 也失败:", fallbackError);
+      const fallbackMessage =
+        fallbackError && fallbackError.message === "API_TIMEOUT"
+          ? "请求超时，请稍后重试"
+          : "API 路由未配置，且旧 API 也无法访问。\n\n" +
             "请检查服务器配置或联系管理员。\n\n" +
             "如需配置 Nginx，请添加：\n" +
             "location ~ ^/api/([^/]+)/?$ {\n" +
             "    try_files $uri /api/index.php?domain=$1$is_args$args;\n" +
-            "}",
-            domain
-          );
-        });
-      } else {
-        // 其他错误，直接显示
-        hideLoading();
-        displayError("网络错误，请稍后重试", domain);
-      }
-    });
+            "}";
+      displayError(fallbackMessage, normalizedTarget);
+    }
+  })().finally(() => {
+    hideLoading();
+  });
 }
-function displayWhoisResult(data, domain, apiUsed, queryTime) {
+function displayWhoisResult(data, domain, apiUsed, queryTime, meta = {}) {
   const resultContainer = document.getElementById("query-result");
   if (!resultContainer) return;
   const whoapiData = data.whoapi_data || {};
@@ -1104,11 +1238,36 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
     },
   };
   function getStatusTranslation(status) {
-    const statusLower = status.toLowerCase();
-    if (statusTranslations[statusLower]) {
-      return statusTranslations[statusLower];
+    const statusKey = String(status || "")
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
+    if (statusTranslations[statusKey]) {
+      return statusTranslations[statusKey];
     }
     return { en: status, cn: status, desc: "未知状态" };
+  }
+
+  function normalizeStatusValue(status) {
+    if (status === null || status === undefined) return "";
+    const raw = String(status).trim();
+    if (!raw) return "";
+
+    // 优先使用 RDAP/EPP URL 片段，如 #clientDeleteProhibited
+    const hashMatch = raw.match(/#([a-z][a-z0-9]*)/i);
+    if (hashMatch && hashMatch[1]) {
+      return hashMatch[1];
+    }
+
+    // 去除 URL 后再识别状态文本
+    const noUrl = raw.replace(/https?:\/\/\S+/gi, " ").trim();
+    if (!noUrl) return "";
+
+    const compact = noUrl.toLowerCase().replace(/[^a-z]/g, "");
+    if (statusTranslations[compact]) {
+      return compact;
+    }
+
+    return noUrl;
   }
   let statusList = [];
   if (whoapiData.domain_status && whoapiData.domain_status.length > 0) {
@@ -1534,11 +1693,12 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
     return "status-dot-green";
   }
 
-  const tld = getTLD(domain);
+  const isIpQuery = whoapiData.query_kind === "ip" || isValidIP(domain);
+  const tld = isIpQuery ? "" : getTLD(domain);
   const domainUppercase = domain.toUpperCase();
-  const registeredYears = calculateRegisteredYears(whoapiData.date_created);
-  const tldCategory = getTLDCategory(tld);
-  const categoryInfo = getTLDCategoryInfo(tldCategory);
+  const registeredYears = isIpQuery ? null : calculateRegisteredYears(whoapiData.date_created);
+  const tldCategory = isIpQuery ? null : getTLDCategory(tld);
+  const categoryInfo = tldCategory ? getTLDCategoryInfo(tldCategory) : null;
   const categoryColors = {
     ccTLD: "tld-badge tld-badge-cc",
     gTLD: "tld-badge tld-badge-g",
@@ -1564,7 +1724,11 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
   };
 
   const domainParts = getDomainParts(domain, tld);
-  const domainBadge = tld
+  const domainBadge = isIpQuery
+    ? `<span class="result-card-badge result-card-badge-tld"><span class="domain-name">${escapeHtml(
+        domain
+      )}</span></span>`
+    : tld
     ? `<span class="result-card-badge result-card-badge-tld"><span class="domain-name">${escapeHtml(
         domainParts.name
       )}</span><span class="tld-dot">.</span><span class="tld-text">${escapeHtml(
@@ -1575,7 +1739,27 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
       )}</span></span>`;
 
   const statusDotClass = getStatusDotClass();
-  let html = ` <div class="result-card"> <!-- 导航栏 --> <div class="result-card-header"> <h1 class="result-card-domain"> <span class="result-card-status-dot ${statusDotClass}"></span> ${domainBadge} ${
+  const queryTypeBadge = isIpQuery
+    ? (String(whoapiData.ip_version || (String(domain).includes(":") ? "IPv6" : "IPv4"))
+        .toUpperCase()
+        .includes("6")
+        ? "IPv6"
+        : "IPv4")
+    : "DOMAIN";
+  const isCached = !!meta.cached;
+  const cacheTimeText =
+    meta.cacheTime && !Number.isNaN(new Date(meta.cacheTime * 1000).getTime())
+      ? new Date(meta.cacheTime * 1000).toLocaleString("zh-CN")
+      : "";
+  const cacheBadge = isCached
+    ? `<span class="result-card-badge result-card-badge-type" title="${
+        cacheTimeText ? `缓存时间: ${escapeHtml(cacheTimeText)}` : "来自缓存"
+      }">CACHE</span>`
+    : "";
+  const refreshCacheButton = isCached
+    ? `<button type="button" class="result-card-badge result-card-badge-type refresh-cache-btn" title="更新并刷新缓存"><i class="fas fa-rotate-right"></i></button>`
+    : "";
+  let html = ` <div class="result-card"> <!-- 导航栏 --> <div class="result-card-header"> <h1 class="result-card-domain"> <span class="result-card-status-dot ${statusDotClass}"></span> <span class="result-card-badge result-card-badge-type">${queryTypeBadge}</span> ${domainBadge} ${
     tldCategory
       ? `<span class="result-card-badge ${
           categoryColors[tldCategory] || "tld-badge"
@@ -1589,35 +1773,34 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
     registeredYears !== null
       ? `<span class="result-card-badge result-card-badge-years ${getYearBadgeClass(registeredYears)}">${registeredYears}年</span>`
       : ""
-  } <div class="result-card-header-content"> <div class="result-card-meta"> </div> <div class="result-card-quick-info"> <span class="result-card-badge result-card-badge-type">domain</span> <span class="result-card-quick-info-item">${queryTime}s</span> </div> </div> </h1> </div> <!-- 基本信息卡片 --> <div class="result-card-body"> <div class="result-info-list"> `;
+  } <div class="result-card-header-content"> <div class="result-card-meta"></div> <div class="result-card-quick-info"> ${cacheBadge} ${refreshCacheButton} <span class="result-card-quick-info-item">${queryTime}s</span> </div> </div> </h1> </div> <!-- 基本信息卡片 --> <div class="result-card-body"> <div class="result-info-list"> `;
   if (statusList.length > 0) {
     html += ` <div class="result-info-item"> <span class="result-label">状态:</span> <div class="status-badge-group"> `;
-    
-    // 处理状态列表：拆分可能包含多个状态的字符串
-    const allStatuses = [];
+
+    // 仅按换行/逗号/分号拆分，避免把 "client delete prohibited" 误拆成 3 个词
+    const rawStatusItems = [];
     statusList.forEach((status) => {
-      // 如果状态包含空格，说明是多个状态合并在一起的，需要拆分
-      if (typeof status === 'string' && status.includes(' ')) {
-        const splitStatuses = status.trim().split(/\s+/);
-        splitStatuses.forEach(s => {
-          if (s.trim()) {
-            allStatuses.push(s.trim());
-          }
-        });
-      } else {
-        allStatuses.push(status);
-      }
+      if (status === null || status === undefined) return;
+      const chunks = String(status).split(/[\n,;]+/);
+      chunks.forEach((chunk) => {
+        const value = chunk.trim();
+        if (value) rawStatusItems.push(value);
+      });
     });
-    
-    // 去重，确保每个状态只显示一次
-    const uniqueStatuses = [...new Set(allStatuses)];
-    
+
+    const normalizedStatuses = rawStatusItems
+      .map((item) => normalizeStatusValue(item))
+      .filter(Boolean);
+    const uniqueStatuses = [...new Set(normalizedStatuses)];
+
     // 为每个状态创建独立的徽章
     uniqueStatuses.forEach((status) => {
       const translation = getStatusTranslation(status);
-      const statusLower = status.toLowerCase();
+      const statusLower = String(status)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "");
       const statusClass = `status-badge ${statusLower}`;
-      
+
       html += ` <span class="${statusClass}" title="${escapeHtml(
         translation.desc
       )}"> <span class="status-badge-label-cn">${escapeHtml(
@@ -1730,14 +1913,15 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
   }
   if (registrarName) {
     const registrarLink = getRegistrarLink(registrarName);
+    const registrarLabel = isIpQuery ? "网络归属" : "注册商";
     if (registrarLink) {
-      html += ` <div class="result-info-item"> <span class="result-label">注册商:</span> <span class="result-value"> <a href="${escapeHtml(
+      html += ` <div class="result-info-item"> <span class="result-label">${registrarLabel}:</span> <span class="result-value"> <a href="${escapeHtml(
         registrarLink
       )}" target="_blank" class="result-link"> ${escapeHtml(
         registrarName
       )} <i class="fas fa-external-link-alt"></i> </a> </span> </div> `;
     } else {
-      html += ` <div class="result-info-item"> <span class="result-label">注册商:</span> <span class="result-value">${escapeHtml(
+      html += ` <div class="result-info-item"> <span class="result-label">${registrarLabel}:</span> <span class="result-value">${escapeHtml(
         registrarName
       )}</span> </div> `;
     }
@@ -1749,6 +1933,67 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
       whoapiData.registrar_iana_id
     )} <i class="fas fa-external-link-alt"></i> </a> </span> </div> `;
   }
+  if (isIpQuery && whoapiData.ip_version) {
+    html += ` <div class="result-info-item"> <span class="result-label">IP 版本:</span> <span class="result-value">${escapeHtml(
+      whoapiData.ip_version
+    )}</span> </div> `;
+  }
+  if (isIpQuery && whoapiData.network_range) {
+    html += ` <div class="result-info-item"> <span class="result-label">地址范围:</span> <span class="result-value">${escapeHtml(
+      whoapiData.network_range
+    )}</span> </div> `;
+  }
+  if (isIpQuery && whoapiData.country) {
+    html += ` <div class="result-info-item"> <span class="result-label">国家/地区:</span> <span class="result-value">${escapeHtml(
+      whoapiData.country
+    )}</span> </div> `;
+  }
+  if (isIpQuery && whoapiData.ip_geo) {
+    const geo = whoapiData.ip_geo;
+    if (geo.country || geo.country_code) {
+      html += ` <div class="result-info-item"> <span class="result-label">地理位置:</span> <span class="result-value">${escapeHtml(
+        [geo.country, geo.country_code].filter(Boolean).join(" ")
+      )}</span> </div> `;
+    }
+    if (geo.region || geo.city) {
+      html += ` <div class="result-info-item"> <span class="result-label">区域/城市:</span> <span class="result-value">${escapeHtml(
+        [geo.region, geo.city].filter(Boolean).join(" / ")
+      )}</span> </div> `;
+    }
+    if (geo.timezone) {
+      html += ` <div class="result-info-item"> <span class="result-label">时区:</span> <span class="result-value">${escapeHtml(
+        geo.timezone
+      )}</span> </div> `;
+    }
+    if (geo.asn || geo.as_name) {
+      html += ` <div class="result-info-item"> <span class="result-label">ASN:</span> <span class="result-value">${escapeHtml(
+        [geo.asn, geo.as_name].filter(Boolean).join(" ")
+      )}</span> </div> `;
+    }
+    if (geo.isp) {
+      html += ` <div class="result-info-item"> <span class="result-label">ISP:</span> <span class="result-value">${escapeHtml(
+        geo.isp
+      )}</span> </div> `;
+    }
+    if (geo.organization) {
+      html += ` <div class="result-info-item"> <span class="result-label">组织:</span> <span class="result-value">${escapeHtml(
+        geo.organization
+      )}</span> </div> `;
+    }
+    if (geo.latitude !== null && geo.latitude !== undefined && geo.longitude !== null && geo.longitude !== undefined) {
+      const lat = String(geo.latitude).trim();
+      const lon = String(geo.longitude).trim();
+      const mapUrl = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+        lat
+      )}&mlon=${encodeURIComponent(lon)}#map=12/${encodeURIComponent(
+        lat
+      )}/${encodeURIComponent(lon)}`;
+      html += ` <div class="result-info-item"> <span class="result-label">坐标:</span> <span class="result-value">${escapeHtml(
+        `${lat}, ${lon}`
+      )} <a href="${mapUrl}" target="_blank" rel="noopener" class="result-link" title="在地图中查看坐标"><i class="fas fa-earth-asia"></i></a></span> </div> `;
+    }
+  }
+
   if (whoapiData.whois_server) {
     const whoisServerUrl = whoapiData.whois_server.trim();
     const whoisServerDisplay =
@@ -1786,7 +2031,7 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
     }
   }
   const displayNameservers = filterDisplayNameservers(whoapiData.nameservers);
-  if (displayNameservers.length > 0) {
+  if (!isIpQuery && displayNameservers.length > 0) {
     html += ` <div class="result-info-item"> <span class="result-label">域名服务器:</span> <div class="result-value nameservers-list"> `;
     displayNameservers.forEach((ns) => {
       html += ` <span class="nameserver-item"> ${escapeHtml(
@@ -1795,9 +2040,43 @@ function displayWhoisResult(data, domain, apiUsed, queryTime) {
     });
     html += `</div></div>`;
   }
+  if (!isIpQuery && whoapiData.dns_records && typeof whoapiData.dns_records === "object") {
+    const dns = whoapiData.dns_records;
+    const renderDnsValue = (type, value) => {
+      const safeValue = escapeHtml(String(value));
+      if (type === "A" || type === "AAAA") {
+        const nextQuery = `/${encodeURIComponent(String(value).trim())}`;
+        return `${safeValue} <a href="${nextQuery}" class="result-link" title="继续查询该 IP"><i class="fas fa-magnifying-glass"></i></a>`;
+      }
+      return safeValue;
+    };
+    const dnsRows = [
+      { label: "A", values: Array.isArray(dns.a) ? dns.a : [] },
+      { label: "AAAA", values: Array.isArray(dns.aaaa) ? dns.aaaa : [] },
+      { label: "CNAME", values: Array.isArray(dns.cname) ? dns.cname : [] },
+      { label: "MX", values: Array.isArray(dns.mx) ? dns.mx : [] },
+      { label: "TXT", values: Array.isArray(dns.txt) ? dns.txt : [] },
+    ];
+    const hasDns = dnsRows.some((row) => row.values.length > 0);
+    if (hasDns) {
+      const dnsHtml = dnsRows
+        .filter((row) => row.values.length > 0)
+        .map((row) => {
+          const values = row.values.map((v) => renderDnsValue(row.label, v)).join("<br>");
+          return `<div class="result-info-item"><span class="result-label">DNS ${row.label}:</span><span class="result-value">${values}</span></div>`;
+        })
+        .join("");
+      html += dnsHtml;
+    }
+  }
   html += ` <div class="result-info-item"> <span class="result-label">DNSSEC:</span> <span class="result-value"> unsigned <i class="fas fa-question-circle"></i> </span> </div> `;
   html += ` </div> </div> <!-- 原始 RDAP 响应 --> <div class="rdap-json-section"> <div class="rdap-json-header"> <h3 class="rdap-json-title">原始 RDAP 响应 (JSON)</h3> <div class="rdap-json-actions"> <button onclick="copyRdapJson()" class="rdap-json-button"> <i class="fas fa-copy"></i> </button> <button onclick="downloadRdapJson()" class="rdap-json-button"> <i class="fas fa-download"></i> </button> </div> </div> <pre id="rdap-json"><code id="rdap-json-code"></code></pre> </div> </div> `;
   resultContainer.innerHTML = html;
+  resultContainer.querySelectorAll(".refresh-cache-btn").forEach((button) => {
+    button.addEventListener("click", function () {
+      queryDomain(String(domain || ""), { forceRefresh: true });
+    });
+  });
   setTimeout(function () {
     const codeEl = document.getElementById("rdap-json-code");
     if (codeEl && window.rdapJsonData) {
@@ -1953,4 +2232,20 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
+
+  // 禁止品牌 SVG 右键/拖拽，减少“查看图片源文件”入口（前端层面防护）
+  const brandLogoProtectedNodes = document.querySelectorAll(
+    ".brand-logo-grid, .brand-logo-item, .brand-logo-image"
+  );
+  brandLogoProtectedNodes.forEach((node) => {
+    node.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+    });
+    node.addEventListener("dragstart", (e) => {
+      e.preventDefault();
+    });
+    node.addEventListener("selectstart", (e) => {
+      e.preventDefault();
+    });
+  });
 });

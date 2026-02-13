@@ -1,6 +1,6 @@
 <?php
 $page_title = 'ccTLDs - 国家代码顶级域名';
-include '../header.php';
+include __DIR__ . '/../header.php';
 ?>
 
 <section class="hero">
@@ -166,4 +166,4 @@ include '../header.php';
     </div>
 </section>
 
-<?php include '../footer.php'; ?>
+<?php include __DIR__ . '/../footer.php'; ?>

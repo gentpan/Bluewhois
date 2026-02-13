@@ -1,6 +1,6 @@
 <?php
 $page_title = 'IANA - 根域名数据库';
-include '../header.php';
+include __DIR__ . '/../header.php';
 ?>
 
 <section class="hero">
@@ -166,4 +166,4 @@ include '../header.php';
     </div>
 </section>
 
-<?php include '../footer.php'; ?>
+<?php include __DIR__ . '/../footer.php'; ?>

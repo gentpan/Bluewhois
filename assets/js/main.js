@@ -897,10 +897,12 @@
           suggestionsDiv.scrollHeight;
         const scrollingDown = e.deltaY > 0;
 
-        // 阻止页面接管滚轮
+        // 在边界时把滚轮交还给页面，避免页面“滚不动”
         if ((!scrollingDown && atTop) || (scrollingDown && atBottom)) {
-          e.preventDefault();
+          return;
         }
+        // 仅在下拉内部可滚动时消费事件
+        e.preventDefault();
         e.stopPropagation();
       },
       { passive: false }
@@ -1055,6 +1057,12 @@
   "use strict";
 
   function initAutoQuery() {
+    // 仅在首页查询容器存在时启用自动查询，避免旧详情页触发 queryDomain 报错
+    const resultContainer = document.getElementById("query-result");
+    if (!resultContainer) {
+      return;
+    }
+
     let domain = null;
 
     // 首先检查URL参数（GET参数）
@@ -1070,22 +1078,34 @@
       }
     } else {
       // 从 URL 路径中提取域名
-      const path = window.location.pathname.replace(/^\//, "");
+      const path = decodeURIComponent(window.location.pathname.replace(/^\//, ""));
+      const staticRoutes = new Set([
+        "about",
+        "contact",
+        "api-docs",
+        "api",
+        "pages",
+        "assets",
+        "favicon.ico",
+      ]);
+
+      const isValidTarget = typeof window.isValidQueryTarget === "function"
+        ? window.isValidQueryTarget
+        : function (value) {
+            return typeof window.isValidDomain === "function" && window.isValidDomain(value);
+          };
 
       // 排除已知路径
       if (
         path &&
         path !== "index.php" &&
         path !== "" &&
+        !staticRoutes.has(path.toLowerCase()) &&
         !path.includes(".php") &&
         !path.includes("/")
       ) {
-        // 检查是否是有效的域名格式
-        const domainMatch = path.match(
-          /^([a-zA-Z0-9][a-zA-Z0-9.-]{0,253}[a-zA-Z0-9]?)$/
-        );
-        if (domainMatch) {
-          domain = domainMatch[1];
+        if (isValidTarget(path)) {
+          domain = path;
         }
       }
     }
@@ -1102,6 +1122,9 @@
       attempts++;
 
       if (typeof window.queryDomain === "function") {
+        if (!document.getElementById("query-result")) {
+          return;
+        }
         // 函数已加载，执行查询
         console.log("Auto querying domain:", domain);
         window.queryDomain(domain);

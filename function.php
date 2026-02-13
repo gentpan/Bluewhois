@@ -119,11 +119,19 @@ function validateRecordType($type)
 
 /**
  * 获取基础路径（用于相对路径引用）
- * 如果当前页面在 pages/ 目录下，返回 '../'，否则返回 ''
+ * 根据当前脚本层级自动返回相对路径前缀
  */
 function getBasePath()
 {
-    return (strpos($_SERVER['REQUEST_URI'] ?? '', '/pages/') !== false) ? '../' : '';
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $scriptDir = trim(str_replace('\\', '/', dirname($scriptName)), '/');
+    if ($scriptDir === '' || $scriptDir === '.') {
+        return '';
+    }
+    $depth = count(array_filter(explode('/', $scriptDir), static function ($seg) {
+        return $seg !== '';
+    }));
+    return str_repeat('../', $depth);
 }
 
 /**
@@ -159,12 +167,10 @@ function extractDomainFromPath($excluded_prefix = null, $excluded_paths = [])
         
         // 只处理单层路径（不是文件或目录）
         if (count($path_parts) === 1 && !in_array(strtolower($path), $excluded_paths)) {
-            // 检查是否像域名格式（必须包含点）
-            if (strpos($path, '.') !== false && preg_match('/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/', $path)) {
-                // 验证是否为有效域名
-                if (dl_validateDomain($path)) {
-                    $domain = dl_normalizeDomain($path);
-                }
+            // 支持 domain / IPv4 / IPv6 的直接路径
+            $candidate = urldecode($path);
+            if (dl_validateQueryTarget($candidate)) {
+                $domain = dl_normalizeQueryTarget($candidate);
             }
         }
     }
@@ -180,11 +186,11 @@ function extractDomainFromApiPath()
 {
     $domain = '';
     
-    // 优先从GET参数获取域名（Nginx 重写后）
-    $domain = $_GET['domain'] ?? '';
+    // 优先从 GET 参数获取（兼容 domain/target/ip）
+    $domain = $_GET['domain'] ?? ($_GET['target'] ?? ($_GET['ip'] ?? ''));
     
     if (!empty($domain)) {
-        return dl_normalizeDomain($domain);
+        return dl_normalizeQueryTarget($domain);
     }
     
     $request_uri = $_SERVER['REQUEST_URI'] ?? '';
@@ -197,7 +203,7 @@ function extractDomainFromApiPath()
     // 移除开头的斜杠和尾部的斜杠
     $path = trim($path, '/');
     
-    // 提取域名部分 (api/qq.com -> qq.com)
+    // 提取目标部分 (api/qq.com -> qq.com) 或 (qq.com/api -> qq.com)
     $path_parts = explode('/', $path);
     
     if (count($path_parts) >= 2 && $path_parts[0] === 'api') {
@@ -205,13 +211,23 @@ function extractDomainFromApiPath()
         // 清理域名（移除可能的路径片段和URL编码）
         $domain = urldecode($domain);
         $domain = preg_replace('/\/.*$/', '', $domain);
-        return dl_normalizeDomain($domain);
+        return dl_normalizeQueryTarget($domain);
+    }
+    if (count($path_parts) >= 2 && strtolower($path_parts[1]) === 'api') {
+        $domain = $path_parts[0];
+        $domain = urldecode($domain);
+        $domain = preg_replace('/\/.*$/', '', $domain);
+        return dl_normalizeQueryTarget($domain);
     }
     
     // 如果还是为空，尝试从 REQUEST_URI 直接提取
     if (empty($domain) && preg_match('#^/api/([^/?]+)#', $request_uri, $matches)) {
         $domain = urldecode($matches[1]);
-        return dl_normalizeDomain($domain);
+        return dl_normalizeQueryTarget($domain);
+    }
+    if (empty($domain) && preg_match('#^/([^/?]+)/api/?(?:\?|$)#', $request_uri, $matches)) {
+        $domain = urldecode($matches[1]);
+        return dl_normalizeQueryTarget($domain);
     }
     
     // 如果还是为空，尝试从脚本文件名提取（某些服务器配置）
@@ -220,7 +236,7 @@ function extractDomainFromApiPath()
         // 如果直接访问 api/domain.com，SCRIPT_NAME 可能是 /api/domain.com
         if (preg_match('#/api/([^/]+)$#', $script_name, $matches)) {
             $domain = urldecode($matches[1]);
-            return dl_normalizeDomain($domain);
+            return dl_normalizeQueryTarget($domain);
         }
     }
     
@@ -230,7 +246,7 @@ function extractDomainFromApiPath()
         if (!empty($path_info)) {
             $domain = urldecode($path_info);
             $domain = preg_replace('/\/.*$/', '', $domain);
-            return dl_normalizeDomain($domain);
+            return dl_normalizeQueryTarget($domain);
         }
     }
     
@@ -238,8 +254,12 @@ function extractDomainFromApiPath()
     if (empty($domain) && isset($_SERVER['REDIRECT_URL'])) {
         if (preg_match('#/api/([^/]+)#', $_SERVER['REDIRECT_URL'], $matches)) {
             $domain = urldecode($matches[1]);
-            return dl_normalizeDomain($domain);
-    }
+            return dl_normalizeQueryTarget($domain);
+        }
+        if (preg_match('#/([^/]+)/api/?$#', $_SERVER['REDIRECT_URL'], $matches)) {
+            $domain = urldecode($matches[1]);
+            return dl_normalizeQueryTarget($domain);
+        }
     }
     
     return '';
@@ -278,13 +298,59 @@ function dl_validateDomain($domain)
 }
 
 /**
+ * 校验查询目标：支持域名、IPv4、IPv6
+ */
+function dl_validateQueryTarget($target)
+{
+    $target = dl_normalizeQueryTarget($target);
+    if ($target === '') return false;
+    if (dl_validateDomain($target)) return true;
+    if (validateIP($target)) return true;
+    return false;
+}
+
+/**
+ * 统一规范化查询目标：去空白、去尾点、统一小写
+ */
+function dl_normalizeQueryTarget($target)
+{
+    $target = trim((string)$target);
+    if ($target === '') return '';
+
+    $target = str_replace(["\r", "\n", "\t"], '', $target);
+
+    // 支持输入完整 URL，如 https://www.icann.org/path
+    if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $target)) {
+        $parts = @parse_url($target);
+        if (is_array($parts) && !empty($parts['host'])) {
+            $target = (string)$parts['host'];
+        }
+    } elseif (strpos($target, '/') !== false || strpos($target, '?') !== false || strpos($target, '#') !== false) {
+        // 支持输入 www.example.com/path
+        $parts = @parse_url('http://' . ltrim($target, '/'));
+        if (is_array($parts) && !empty($parts['host'])) {
+            $target = (string)$parts['host'];
+        }
+    }
+
+    $target = trim($target, '[]'); // 兼容 [IPv6] 输入
+    $target = rtrim($target, '.');
+    $target = strtolower($target);
+
+    // 域名场景下自动去掉 www. 前缀
+    if (!validateIP($target) && strpos($target, 'www.') === 0) {
+        $target = substr($target, 4);
+    }
+
+    return $target;
+}
+
+/**
  * 统一规范化域名：去空白、去尾点、统一小写
  */
 function dl_normalizeDomain($domain)
 {
-    $domain = trim((string)$domain);
-    $domain = rtrim($domain, '.');
-    return strtolower($domain);
+    return dl_normalizeQueryTarget($domain);
 }
 
 /**
@@ -308,6 +374,68 @@ function dl_filterNameservers($nameservers)
     }
 
     return array_values(array_unique($filtered));
+}
+
+/**
+ * 查询域名 DNS 记录摘要（A/AAAA/CNAME/MX/NS/TXT）
+ */
+function dl_queryDnsSummary($domain)
+{
+    $domain = dl_normalizeDomain($domain);
+    if (!dl_validateDomain($domain)) return [];
+    if (!function_exists('dns_get_record')) return [];
+
+    $summary = [
+        'a' => [],
+        'aaaa' => [],
+        'cname' => [],
+        'mx' => [],
+        'ns' => [],
+        'txt' => []
+    ];
+
+    $flags = [
+        'a' => defined('DNS_A') ? DNS_A : 1,
+        'aaaa' => defined('DNS_AAAA') ? DNS_AAAA : 134217728,
+        'cname' => defined('DNS_CNAME') ? DNS_CNAME : 16,
+        'mx' => defined('DNS_MX') ? DNS_MX : 16384,
+        'ns' => defined('DNS_NS') ? DNS_NS : 2,
+        'txt' => defined('DNS_TXT') ? DNS_TXT : 32768,
+    ];
+
+    foreach ($flags as $type => $flag) {
+        $records = @dns_get_record($domain, $flag);
+        if (!is_array($records) || empty($records)) continue;
+        foreach ($records as $record) {
+            if (!is_array($record)) continue;
+            if ($type === 'a' && !empty($record['ip'])) {
+                $summary['a'][] = (string)$record['ip'];
+            } elseif ($type === 'aaaa' && !empty($record['ipv6'])) {
+                $summary['aaaa'][] = (string)$record['ipv6'];
+            } elseif ($type === 'cname' && !empty($record['target'])) {
+                $summary['cname'][] = rtrim(strtolower((string)$record['target']), '.');
+            } elseif ($type === 'mx' && !empty($record['target'])) {
+                $priority = isset($record['pri']) ? (int)$record['pri'] : 0;
+                $target = rtrim(strtolower((string)$record['target']), '.');
+                $summary['mx'][] = ($priority > 0 ? ($priority . ' ') : '') . $target;
+            } elseif ($type === 'ns' && !empty($record['target'])) {
+                $summary['ns'][] = rtrim(strtolower((string)$record['target']), '.');
+            } elseif ($type === 'txt' && isset($record['txt'])) {
+                $txt = trim((string)$record['txt']);
+                if ($txt !== '') $summary['txt'][] = $txt;
+            }
+        }
+    }
+
+    foreach ($summary as $key => $list) {
+        $list = array_values(array_unique(array_filter(array_map('strval', $list))));
+        if ($key === 'txt') {
+            $list = array_slice($list, 0, 8); // 避免超长
+        }
+        $summary[$key] = $list;
+    }
+
+    return $summary;
 }
 
 /**
@@ -477,8 +605,71 @@ function dl_queryWhoisPort43($domain, $server, $timeout = 15)
     $updated = '';
     $expires = '';
     $registrar = '';
+    $domainStatus = [];
+    $section = '';
+    $contacts = [];
+
+    $sectionContactMap = [
+        'registrant' => 'registrant',
+        'administrative contact' => 'admin',
+        'technical contact' => 'tech',
+    ];
 
     foreach ($lines as $line) {
+        $trimmedLine = trim((string)$line);
+
+        // 识别段落标题（例如 .ee: "Domain:", "Registrar:", "Registrant:"）
+        if (preg_match('/^\s*([a-z][a-z0-9 ]+)\s*:\s*$/i', $line, $mSection)) {
+            $section = strtolower(trim($mSection[1]));
+            continue;
+        }
+
+        // 分段 key-value 解析（兼容 .ee 这类段落式 WHOIS）
+        if (preg_match('/^\s*([a-z][a-z0-9 _-]+)\s*:\s*(.+)$/i', $line, $mKv)) {
+            $key = strtolower(trim($mKv[1]));
+            $value = trim($mKv[2]);
+
+            if ($section === 'domain') {
+                if ($created === '' && in_array($key, ['registered', 'creation date', 'created on', 'created date', 'created'], true)) {
+                    $created = $value;
+                } elseif ($updated === '' && in_array($key, ['changed', 'updated date', 'last updated on', 'last changed'], true)) {
+                    $updated = $value;
+                } elseif ($expires === '' && in_array($key, ['expire', 'expires on', 'expiry date', 'expiration date', 'registry expiry date', 'paid-till'], true)) {
+                    $expires = $value;
+                } elseif ($key === 'status' && $value !== '') {
+                    $domainStatus[] = $value;
+                }
+            } elseif ($section === 'registrar') {
+                if ($registrar === '' && in_array($key, ['name', 'registrar'], true)) {
+                    $registrar = $value;
+                }
+            } elseif (isset($sectionContactMap[$section])) {
+                $contactType = $sectionContactMap[$section];
+                if (!isset($contacts[$contactType])) {
+                    $contacts[$contactType] = [
+                        'type' => $contactType,
+                        'name' => '',
+                        'organization' => '',
+                        'email' => '',
+                        'phone' => '',
+                        'country' => '',
+                    ];
+                }
+
+                if ($key === 'name' && $contacts[$contactType]['name'] === '') {
+                    $contacts[$contactType]['name'] = $value;
+                } elseif (in_array($key, ['org id', 'organization', 'org'], true) && $contacts[$contactType]['organization'] === '') {
+                    $contacts[$contactType]['organization'] = $value;
+                } elseif ($key === 'email' && $contacts[$contactType]['email'] === '') {
+                    $contacts[$contactType]['email'] = $value;
+                } elseif (in_array($key, ['phone', 'tel'], true) && $contacts[$contactType]['phone'] === '') {
+                    $contacts[$contactType]['phone'] = $value;
+                } elseif ($key === 'country' && $contacts[$contactType]['country'] === '') {
+                    $contacts[$contactType]['country'] = $value;
+                }
+            }
+        }
+
         if (preg_match('/^\s*(?:name server|nserver)\s*:\s*(.+)$/i', $line, $m)) {
             $raw = trim($m[1]);
             if ($raw !== '') {
@@ -505,6 +696,12 @@ function dl_queryWhoisPort43($domain, $server, $timeout = 15)
 
         if ($expires === '' && preg_match('/^\s*(?:registry expiry date|expiry date|expires on|expiration date|paid-till)\s*:\s*(.+)$/i', $line, $m)) {
             $expires = trim($m[1]);
+            continue;
+        }
+
+        if (preg_match('/^\s*status\s*:\s*(.+)$/i', $line, $m)) {
+            $statusText = trim($m[1]);
+            if ($statusText !== '') $domainStatus[] = $statusText;
             continue;
         }
     }
@@ -534,6 +731,25 @@ function dl_queryWhoisPort43($domain, $server, $timeout = 15)
         if ($ts) $data['date_expires'] = date('Y-m-d H:i:s', $ts);
     }
     if (!empty($nameservers)) $data['nameservers'] = $nameservers;
+    if (!empty($domainStatus)) {
+        $data['domain_status'] = array_values(array_unique(array_filter($domainStatus)));
+    }
+    if (!empty($contacts)) {
+        $filteredContacts = [];
+        foreach ($contacts as $contact) {
+            $hasUseful = false;
+            foreach (['name', 'organization', 'email', 'phone', 'country'] as $k) {
+                if (!empty($contact[$k])) {
+                    $hasUseful = true;
+                    break;
+                }
+            }
+            if ($hasUseful) $filteredContacts[] = $contact;
+        }
+        if (!empty($filteredContacts)) {
+            $data['contacts'] = $filteredContacts;
+        }
+    }
 
     return $data;
 }
@@ -573,6 +789,200 @@ function dl_queryWhoisFallback($domain)
 
     $tail = !empty($attemptErrors) ? ('；详情: ' . implode(' | ', array_slice($attemptErrors, 0, 4))) : '';
     return ['error' => 'WHOIS 后备查询失败' . $tail];
+}
+
+/**
+ * 加载 Public Suffix List（用于后续后缀识别扩展）
+ */
+function dl_getPublicSuffixList()
+{
+    $cacheFile = defined('CACHE_DIR') ? (CACHE_DIR . 'public_suffix_list.dat') : null;
+    $ttl = 86400; // 24 小时
+
+    if ($cacheFile && file_exists($cacheFile) && (time() - filemtime($cacheFile) < $ttl)) {
+        $text = @file_get_contents($cacheFile);
+        if (is_string($text) && trim($text) !== '') {
+            return $text;
+        }
+    }
+
+    $url = 'https://publicsuffix.org/list/public_suffix_list.dat';
+    $result = makeApiCall($url, ['Accept: text/plain']);
+    if ($result['http_code'] === 200 && empty($result['error']) && !empty($result['response'])) {
+        if ($cacheFile) {
+            @file_put_contents($cacheFile, $result['response']);
+        }
+        return $result['response'];
+    }
+
+    if ($cacheFile && file_exists($cacheFile)) {
+        $text = @file_get_contents($cacheFile);
+        if (is_string($text) && trim($text) !== '') {
+            return $text;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * 从 WHOIS 文本补充常见字段
+ */
+function dl_fillWhoisFieldsFromText($text, &$converted)
+{
+    if (!is_string($text) || trim($text) === '') return;
+
+    $lines = preg_split('/\r\n|\r|\n/', $text);
+    $nameservers = [];
+    $statusList = [];
+
+    foreach ($lines as $line) {
+        if (empty($converted['registrar']) && preg_match('/^\s*registrar\s*:\s*(.+)$/i', $line, $m)) {
+            $converted['registrar'] = trim($m[1]);
+            continue;
+        }
+        if (empty($converted['date_created']) && preg_match('/^\s*(?:creation date|created on|created date|created|registered)\s*:\s*(.+)$/i', $line, $m)) {
+            $ts = strtotime(trim($m[1]));
+            if ($ts) $converted['date_created'] = date('Y-m-d H:i:s', $ts);
+            continue;
+        }
+        if (empty($converted['date_updated']) && preg_match('/^\s*(?:updated date|last updated on|changed|last changed)\s*:\s*(.+)$/i', $line, $m)) {
+            $ts = strtotime(trim($m[1]));
+            if ($ts) $converted['date_updated'] = date('Y-m-d H:i:s', $ts);
+            continue;
+        }
+        if (empty($converted['date_expires']) && preg_match('/^\s*(?:registry expiry date|expiry date|expires on|expiration date|paid-till|expire)\s*:\s*(.+)$/i', $line, $m)) {
+            $ts = strtotime(trim($m[1]));
+            if ($ts) $converted['date_expires'] = date('Y-m-d H:i:s', $ts);
+            continue;
+        }
+        if (preg_match('/^\s*(?:name server|nserver)\s*:\s*(.+)$/i', $line, $m)) {
+            $raw = trim($m[1]);
+            if ($raw !== '') {
+                $parts = preg_split('/\s+/', $raw);
+                if (!empty($parts[0])) $nameservers[] = $parts[0];
+            }
+            continue;
+        }
+        if (preg_match('/^\s*status\s*:\s*(.+)$/i', $line, $m)) {
+            $status = trim($m[1]);
+            if ($status !== '') $statusList[] = $status;
+            continue;
+        }
+    }
+
+    if (!empty($nameservers)) {
+        $nameservers = dl_filterNameservers($nameservers);
+        if (!empty($nameservers)) $converted['nameservers'] = $nameservers;
+    }
+    if (!empty($statusList)) {
+        $converted['domain_status'] = array_values(array_unique(array_filter($statusList)));
+    }
+}
+
+/**
+ * 查询 Tian WHOIS API（第三层兜底）
+ */
+function dl_queryTianWhois($domain)
+{
+    $url = 'https://api.tian.hu/whois/?domain=' . urlencode($domain);
+    $result = makeApiCall($url, ['Accept: application/json, text/plain, */*']);
+
+    if ($result['http_code'] !== 200) {
+        return ['error' => "Tian WHOIS API HTTP {$result['http_code']}"];
+    }
+    if (!empty($result['error'])) {
+        return ['error' => 'Tian WHOIS API 请求失败: ' . $result['error']];
+    }
+    if (empty($result['response'])) {
+        return ['error' => 'Tian WHOIS API 返回空响应'];
+    }
+
+    $raw = (string)$result['response'];
+    $decoded = json_decode($raw, true);
+
+    $converted = [
+        'domain_name' => $domain,
+        'registered' => true,
+        'whois_server' => 'api.tian.hu',
+        'status' => 0,
+        'status_desc' => 'Success',
+    ];
+
+    if (is_array($decoded)) {
+        $payload = isset($decoded['data']) && is_array($decoded['data']) ? $decoded['data'] : $decoded;
+
+        if (isset($decoded['success']) && $decoded['success'] === false) {
+            $msg = $decoded['message'] ?? $decoded['error'] ?? 'Tian WHOIS API 查询失败';
+            return ['error' => (string)$msg];
+        }
+
+        if (!empty($payload['domain'])) $converted['domain_name'] = dl_normalizeDomain((string)$payload['domain']);
+        if (!empty($payload['domain_name'])) $converted['domain_name'] = dl_normalizeDomain((string)$payload['domain_name']);
+        if (isset($payload['registered'])) $converted['registered'] = (bool)$payload['registered'];
+        if (!empty($payload['registrar'])) $converted['registrar'] = (string)$payload['registrar'];
+
+        foreach ([
+            'date_created' => ['created', 'created_at', 'creation_date', 'registered'],
+            'date_updated' => ['updated', 'updated_at', 'changed', 'last_changed'],
+            'date_expires' => ['expires', 'expires_at', 'expiry_date', 'expiration_date', 'expire'],
+        ] as $target => $keys) {
+            foreach ($keys as $k) {
+                if (!empty($payload[$k])) {
+                    $ts = strtotime((string)$payload[$k]);
+                    if ($ts) {
+                        $converted[$target] = date('Y-m-d H:i:s', $ts);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!empty($payload['status'])) {
+            $converted['domain_status'] = is_array($payload['status']) ? $payload['status'] : [(string)$payload['status']];
+        } elseif (!empty($payload['domain_status'])) {
+            $converted['domain_status'] = is_array($payload['domain_status']) ? $payload['domain_status'] : [(string)$payload['domain_status']];
+        }
+
+        if (!empty($payload['nameservers']) && is_array($payload['nameservers'])) {
+            $converted['nameservers'] = dl_filterNameservers($payload['nameservers']);
+        } elseif (!empty($payload['name_servers']) && is_array($payload['name_servers'])) {
+            $converted['nameservers'] = dl_filterNameservers($payload['name_servers']);
+        } elseif (!empty($payload['ns']) && is_array($payload['ns'])) {
+            $converted['nameservers'] = dl_filterNameservers($payload['ns']);
+        }
+
+        $whoisText = '';
+        foreach (['whois', 'raw', 'raw_whois', 'raw_text', 'text'] as $k) {
+            if (!empty($payload[$k]) && is_string($payload[$k])) {
+                $whoisText = $payload[$k];
+                break;
+            }
+        }
+        if ($whoisText === '' && !empty($decoded['whois']) && is_string($decoded['whois'])) {
+            $whoisText = $decoded['whois'];
+        }
+
+        if ($whoisText !== '') {
+            $converted['whois_raw'] = $whoisText;
+            dl_fillWhoisFieldsFromText($whoisText, $converted);
+        } else {
+            $converted['whois_raw'] = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        }
+    } else {
+        // 非 JSON 返回，按 WHOIS 文本处理
+        $converted['whois_raw'] = $raw;
+        dl_fillWhoisFieldsFromText($raw, $converted);
+    }
+
+    if (isset($converted['nameservers']) && empty($converted['nameservers'])) {
+        unset($converted['nameservers']);
+    }
+    if (isset($converted['domain_status']) && empty($converted['domain_status'])) {
+        unset($converted['domain_status']);
+    }
+
+    return $converted;
 }
 
 /**
@@ -755,6 +1165,329 @@ function dl_getRdapBootstrap()
     }
 
     return null;
+}
+
+/**
+ * 加载 RDAP IP Bootstrap（IANA 官方）
+ */
+function dl_getRdapIpBootstrap($version)
+{
+    $version = strtolower((string)$version);
+    if ($version !== 'ipv4' && $version !== 'ipv6') {
+        return null;
+    }
+
+    $cacheFile = defined('CACHE_DIR') ? (CACHE_DIR . "rdap_bootstrap_{$version}.json") : null;
+    $ttl = 86400; // 24 小时
+
+    if ($cacheFile && file_exists($cacheFile) && (time() - filemtime($cacheFile) < $ttl)) {
+        $cached = json_decode(@file_get_contents($cacheFile), true);
+        if (is_array($cached) && isset($cached['services'])) {
+            return $cached;
+        }
+    }
+
+    $url = "https://data.iana.org/rdap/{$version}.json";
+    $result = makeApiCall($url);
+    if ($result['http_code'] === 200 && empty($result['error']) && !empty($result['response'])) {
+        $data = json_decode($result['response'], true);
+        if (is_array($data) && isset($data['services'])) {
+            if ($cacheFile) {
+                @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE));
+            }
+            return $data;
+        }
+    }
+
+    if ($cacheFile && file_exists($cacheFile)) {
+        $cached = json_decode(@file_get_contents($cacheFile), true);
+        if (is_array($cached) && isset($cached['services'])) {
+            return $cached;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * 判断 IP 是否在 CIDR 范围内
+ */
+function dl_ipInCidr($ip, $cidr)
+{
+    $ip = trim((string)$ip);
+    $cidr = trim((string)$cidr);
+    if ($ip === '' || $cidr === '' || strpos($cidr, '/') === false) return false;
+    if (!validateIP($ip)) return false;
+
+    list($network, $prefixLengthRaw) = explode('/', $cidr, 2);
+    $network = trim($network);
+    $prefixLength = (int)$prefixLengthRaw;
+
+    $ipBin = @inet_pton($ip);
+    $networkBin = @inet_pton($network);
+    if ($ipBin === false || $networkBin === false) return false;
+    if (strlen($ipBin) !== strlen($networkBin)) return false;
+
+    $maxBits = strlen($ipBin) * 8;
+    if ($prefixLength < 0 || $prefixLength > $maxBits) return false;
+
+    $fullBytes = intdiv($prefixLength, 8);
+    $remainingBits = $prefixLength % 8;
+
+    if ($fullBytes > 0) {
+        if (strncmp($ipBin, $networkBin, $fullBytes) !== 0) {
+            return false;
+        }
+    }
+
+    if ($remainingBits === 0) {
+        return true;
+    }
+
+    $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+    $ipByte = ord($ipBin[$fullBytes]);
+    $networkByte = ord($networkBin[$fullBytes]);
+
+    return (($ipByte & $mask) === ($networkByte & $mask));
+}
+
+/**
+ * 从 RDAP IP Bootstrap 中查找可用服务器
+ */
+function dl_findRdapServersForIp($ip, $bootstrap)
+{
+    if (!is_array($bootstrap) || !isset($bootstrap['services']) || !is_array($bootstrap['services'])) {
+        return [];
+    }
+
+    foreach ($bootstrap['services'] as $service) {
+        if (!is_array($service) || count($service) < 2 || !is_array($service[0]) || !is_array($service[1])) {
+            continue;
+        }
+        foreach ($service[0] as $cidr) {
+            if (dl_ipInCidr($ip, (string)$cidr)) {
+                return $service[1];
+            }
+        }
+    }
+
+    return [];
+}
+
+/**
+ * 免费 RDAP IP 查询（IPv4/IPv6）
+ */
+function dl_queryRdapIpFree($ip)
+{
+    $ip = dl_normalizeQueryTarget($ip);
+    if (!validateIP($ip)) {
+        return ['error' => 'IP 地址格式不正确'];
+    }
+
+    $version = (strpos($ip, ':') !== false) ? 'ipv6' : 'ipv4';
+    $bootstrap = dl_getRdapIpBootstrap($version);
+    if (!$bootstrap) {
+        return ['error' => '无法加载 IP RDAP 引导数据'];
+    }
+
+    $servers = dl_findRdapServersForIp($ip, $bootstrap);
+    if (empty($servers)) {
+        return ['error' => '该 IP 暂无可用 RDAP 服务器'];
+    }
+
+    $lastError = '免费 RDAP IP 查询失败';
+    $attempts = [];
+
+    foreach ($servers as $base) {
+        $base = trim((string)$base);
+        if ($base === '') continue;
+
+        $url = rtrim($base, '/') . '/ip/' . rawurlencode($ip);
+        $result = makeApiCall($url, ['Accept: application/rdap+json, application/json']);
+
+        if (!empty($result['error'])) {
+            $lastError = $result['error'];
+            $attempts[] = $base . ': ' . $lastError;
+            continue;
+        }
+        if ($result['http_code'] === 404) {
+            $lastError = 'IP 无公开 RDAP 记录';
+            $attempts[] = $base . ': HTTP 404';
+            continue;
+        }
+        if ($result['http_code'] !== 200 || empty($result['response'])) {
+            $lastError = "HTTP {$result['http_code']} 错误";
+            $attempts[] = $base . ': ' . $lastError;
+            continue;
+        }
+
+        $rdap = json_decode($result['response'], true);
+        if (!is_array($rdap)) {
+            $lastError = 'RDAP 响应解析失败';
+            $attempts[] = $base . ': ' . $lastError;
+            continue;
+        }
+
+        $name = (string)($rdap['name'] ?? ($rdap['handle'] ?? $ip));
+        $startAddress = (string)($rdap['startAddress'] ?? '');
+        $endAddress = (string)($rdap['endAddress'] ?? '');
+
+        $converted = [
+            'query_kind' => 'ip',
+            'ip_address' => $ip,
+            'ip_version' => strtoupper($version),
+            'domain_name' => $ip, // 前端兼容字段
+            'registered' => true,
+            'registrar' => $name,
+            'registrar_url' => '',
+            'whois_server' => parse_url($base, PHP_URL_HOST) ?: '',
+            'domain_status' => isset($rdap['status']) && is_array($rdap['status']) ? $rdap['status'] : [],
+            'rdap_source' => $base,
+            'whois_raw' => json_encode($rdap, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+            'status' => 0,
+            'status_desc' => 'Success'
+        ];
+
+        if ($startAddress !== '' || $endAddress !== '') {
+            $converted['network_range'] = trim($startAddress . ($endAddress !== '' ? ' - ' . $endAddress : ''));
+        }
+        if (!empty($rdap['country']) && is_string($rdap['country'])) {
+            $converted['country'] = strtoupper($rdap['country']);
+        }
+
+        if (isset($rdap['events']) && is_array($rdap['events'])) {
+            foreach ($rdap['events'] as $evt) {
+                if (!is_array($evt)) continue;
+                $action = strtolower((string)($evt['eventAction'] ?? ''));
+                $date = $evt['eventDate'] ?? '';
+                if (empty($date)) continue;
+                $formatted = date('Y-m-d H:i:s', strtotime($date));
+                if (strpos($action, 'registration') !== false || strpos($action, 'created') !== false) {
+                    $converted['date_created'] = $formatted;
+                } elseif (strpos($action, 'last changed') !== false || strpos($action, 'last update') !== false || strpos($action, 'updated') !== false) {
+                    $converted['date_updated'] = $formatted;
+                }
+            }
+        }
+
+        $contacts = [];
+        if (isset($rdap['entities']) && is_array($rdap['entities'])) {
+            foreach ($rdap['entities'] as $entity) {
+                if (!is_array($entity)) continue;
+                $roles = isset($entity['roles']) && is_array($entity['roles']) ? array_map('strtolower', $entity['roles']) : [];
+                $vcard = $entity['vcardArray'] ?? [];
+                $contactName = dl_rdapVcardValue($vcard, 'fn');
+                $org = dl_rdapVcardValue($vcard, 'org');
+                $email = dl_rdapVcardValue($vcard, 'email');
+                $tel = dl_rdapVcardValue($vcard, 'tel');
+
+                if (empty($converted['registrar']) && in_array('registrar', $roles, true)) {
+                    $converted['registrar'] = $contactName ?: $org;
+                }
+                foreach ($roles as $role) {
+                    $contacts[] = [
+                        'type' => $role,
+                        'name' => $contactName,
+                        'organization' => $org,
+                        'email' => $email,
+                        'phone' => $tel
+                    ];
+                }
+            }
+        }
+        if (!empty($contacts)) {
+            $converted['contacts'] = $contacts;
+        }
+
+        if (!empty($attempts)) {
+            $converted['rdap_attempts'] = $attempts;
+        }
+
+        // 补充免费 IP 情报（ip.sb 优先，ip-api 兜底）
+        $geo = dl_queryIpGeoFree($ip);
+        if (is_array($geo) && !isset($geo['error'])) {
+            $converted['ip_geo'] = $geo;
+            if (empty($converted['country']) && !empty($geo['country_code'])) {
+                $converted['country'] = strtoupper((string)$geo['country_code']);
+            }
+        }
+
+        return $converted;
+    }
+
+    return ['error' => $lastError, 'rdap_attempts' => $attempts];
+}
+
+/**
+ * 标准化 IP 地理/网络信息结构
+ */
+function dl_normalizeIpGeo($raw, $source)
+{
+    if (!is_array($raw)) {
+        return ['error' => 'IP 情报响应格式错误'];
+    }
+
+    $geo = [
+        'source' => $source,
+        'ip' => (string)($raw['ip'] ?? $raw['query'] ?? ''),
+        'country' => (string)($raw['country'] ?? ''),
+        'country_code' => strtoupper((string)($raw['country_code'] ?? $raw['countryCode'] ?? '')),
+        'region' => (string)($raw['region'] ?? $raw['regionName'] ?? ''),
+        'city' => (string)($raw['city'] ?? ''),
+        'postal_code' => (string)($raw['postal_code'] ?? $raw['zip_code'] ?? $raw['zip'] ?? ''),
+        'timezone' => (string)($raw['timezone'] ?? ''),
+        'isp' => (string)($raw['isp'] ?? ''),
+        'organization' => (string)($raw['organization'] ?? $raw['org'] ?? ''),
+        'asn' => (string)($raw['asn'] ?? $raw['asn_organization'] ?? $raw['as'] ?? ''),
+        'as_name' => (string)($raw['as_name'] ?? $raw['asname'] ?? ''),
+        'latitude' => $raw['latitude'] ?? $raw['lat'] ?? null,
+        'longitude' => $raw['longitude'] ?? $raw['lon'] ?? null
+    ];
+
+    return $geo;
+}
+
+/**
+ * 免费 IP 信息查询：ip.sb 优先，ip-api 兜底
+ */
+function dl_queryIpGeoFree($ip)
+{
+    $ip = dl_normalizeQueryTarget($ip);
+    if (!validateIP($ip)) {
+        return ['error' => 'IP 地址格式不正确'];
+    }
+
+    // 1) ip.sb（HTTPS）
+    $ipSbUrl = 'https://api.ip.sb/geoip/' . rawurlencode($ip);
+    $res1 = makeApiCall($ipSbUrl, ['Accept: application/json']);
+    if ($res1['http_code'] === 200 && empty($res1['error']) && !empty($res1['response'])) {
+        $data = json_decode($res1['response'], true);
+        if (is_array($data)) {
+            $normalized = dl_normalizeIpGeo($data, 'ip.sb');
+            if (!isset($normalized['error'])) {
+                return $normalized;
+            }
+        }
+    }
+
+    // 2) ip-api（免费版 HTTP）
+    $ipApiUrl = 'http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,message,query,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,asname';
+    $res2 = makeApiCall($ipApiUrl, ['Accept: application/json']);
+    if ($res2['http_code'] === 200 && empty($res2['error']) && !empty($res2['response'])) {
+        $data = json_decode($res2['response'], true);
+        if (is_array($data)) {
+            if (isset($data['status']) && strtolower((string)$data['status']) !== 'success') {
+                $msg = (string)($data['message'] ?? 'ip-api 查询失败');
+                return ['error' => $msg];
+            }
+            $normalized = dl_normalizeIpGeo($data, 'ip-api');
+            if (!isset($normalized['error'])) {
+                return $normalized;
+            }
+        }
+    }
+
+    return ['error' => 'IP 情报查询失败'];
 }
 
 /**
@@ -974,22 +1707,26 @@ function dl_queryRdapFree($domain)
 /**
  * 主 WHOIS 查询函数（包含缓存和多 API 源支持）
  */
-function dl_queryWhois($domain)
+function dl_queryWhois($domain, $forceRefresh = false)
 {
-    $domain = dl_normalizeDomain($domain);
+    $domain = dl_normalizeQueryTarget($domain);
     $data = null;
     $error_msg = '';
     $api_used = '';
-    $cache_key = 'whois_' . md5('free|' . $domain);
+    // 解析逻辑升级后提升版本号，避免命中旧结构缓存
+    $cache_key = 'whois_' . md5('free_v3|' . $domain);
     $cacheFile = defined('CACHE_DIR') ? (CACHE_DIR . $cache_key . '.json') : null;
-    if ($cacheFile && file_exists($cacheFile) && (time() - filemtime($cacheFile) < (defined('CACHE_TTL') ? CACHE_TTL : 3600))) {
+    if (!$forceRefresh && $cacheFile && file_exists($cacheFile) && (time() - filemtime($cacheFile) < (defined('CACHE_TTL') ? CACHE_TTL : 3600))) {
         $cached = json_decode(@file_get_contents($cacheFile), true);
         if (is_array($cached) && array_key_exists('data', $cached) && array_key_exists('error', $cached)) {
+            $cached['cached'] = true;
+            $cached['cache_time'] = filemtime($cacheFile) ?: time();
             return $cached;
         }
     }
 
-    $rdap_data = dl_queryRdapFree($domain);
+    $isIpTarget = validateIP($domain);
+    $rdap_data = $isIpTarget ? dl_queryRdapIpFree($domain) : dl_queryRdapFree($domain);
     if ($rdap_data && !isset($rdap_data['error'])) {
         $whois_content = $rdap_data['whois_raw'] ?? '';
         if (!empty($whois_content)) {
@@ -997,22 +1734,28 @@ function dl_queryWhois($domain)
                 'status' => 0,
                 'domain' => $domain,
                 'whois' => $whois_content,
-                'api_source' => 'RDAP (Primary)',
+                'api_source' => $isIpTarget ? 'RDAP IP (Primary)' : 'RDAP (Primary)',
                 'whoapi_data' => $rdap_data
             ];
-            $api_used = 'RDAP (Primary)';
+            $api_used = $isIpTarget ? 'RDAP IP (Primary)' : 'RDAP (Primary)';
         } else {
             $structured_info = [];
-            if (isset($rdap_data['domain_name'])) $structured_info[] = "域名: " . $rdap_data['domain_name'];
+            if ($isIpTarget) {
+                if (isset($rdap_data['ip_address'])) $structured_info[] = "IP: " . $rdap_data['ip_address'];
+                if (isset($rdap_data['ip_version'])) $structured_info[] = "IP 版本: " . $rdap_data['ip_version'];
+                if (isset($rdap_data['network_range'])) $structured_info[] = "地址范围: " . $rdap_data['network_range'];
+            } else {
+                if (isset($rdap_data['domain_name'])) $structured_info[] = "域名: " . $rdap_data['domain_name'];
+            }
             if (isset($rdap_data['registered'])) $structured_info[] = "注册状态: " . ($rdap_data['registered'] ? '已注册' : '未注册');
             if (isset($rdap_data['date_created'])) $structured_info[] = "创建日期: " . $rdap_data['date_created'];
             if (isset($rdap_data['date_expires'])) $structured_info[] = "过期日期: " . $rdap_data['date_expires'];
             if (isset($rdap_data['date_updated'])) $structured_info[] = "更新日期: " . $rdap_data['date_updated'];
-            if (isset($rdap_data['registrar'])) $structured_info[] = "注册商: " . $rdap_data['registrar'];
+            if (isset($rdap_data['registrar'])) $structured_info[] = ($isIpTarget ? "网络名称" : "注册商") . ": " . $rdap_data['registrar'];
             if (isset($rdap_data['domain_status']) && is_array($rdap_data['domain_status'])) {
-                $structured_info[] = "\n域名状态: " . implode(', ', $rdap_data['domain_status']);
+                $structured_info[] = "\n状态: " . implode(', ', $rdap_data['domain_status']);
             }
-            if (isset($rdap_data['nameservers']) && is_array($rdap_data['nameservers'])) {
+            if (!$isIpTarget && isset($rdap_data['nameservers']) && is_array($rdap_data['nameservers'])) {
                 $structured_info[] = "\nDNS 服务器 (" . count($rdap_data['nameservers']) . " 个):";
                 foreach ($rdap_data['nameservers'] as $ns) $structured_info[] = '  • ' . $ns;
             }
@@ -1020,14 +1763,20 @@ function dl_queryWhois($domain)
                 'status' => 0,
                 'domain' => $domain,
                 'whois' => "以下是从 RDAP 免费服务返回的结构化数据:\n\n" . implode("\n", $structured_info),
-                'api_source' => 'RDAP (Primary)',
+                'api_source' => $isIpTarget ? 'RDAP IP (Primary)' : 'RDAP (Primary)',
                 'whoapi_data' => $rdap_data
             ];
-            $api_used = 'RDAP (Primary)';
+            $api_used = $isIpTarget ? 'RDAP IP (Primary)' : 'RDAP (Primary)';
         }
     } else {
         $rdapError = isset($rdap_data['error']) ? $rdap_data['error'] : '免费 RDAP 查询失败';
         logError("RDAP 免费查询失败: $domain - $rdapError");
+
+        if ($isIpTarget) {
+            $error_msg = "RDAP IP 查询失败: {$rdapError}";
+            $res = ['data' => $data, 'error' => $error_msg ?? '', 'api_used' => $api_used];
+            return $res;
+        }
 
         $whoisFallback = dl_queryWhoisFallback($domain);
         if ($whoisFallback && !isset($whoisFallback['error'])) {
@@ -1044,11 +1793,43 @@ function dl_queryWhois($domain)
         } else {
             $fallbackErr = isset($whoisFallback['error']) ? $whoisFallback['error'] : 'WHOIS 后备查询失败';
             logError("WHOIS 后备查询失败: $domain - $fallbackErr");
-            $error_msg = "RDAP 失败: {$rdapError}；WHOIS 兜底失败: {$fallbackErr}";
+            $tianData = dl_queryTianWhois($domain);
+            if ($tianData && !isset($tianData['error'])) {
+                $whois_content = $tianData['whois_raw'] ?? '';
+                $data = [
+                    'status' => 0,
+                    'domain' => $domain,
+                    'whois' => $whois_content,
+                    'api_source' => 'Tian WHOIS API (Fallback)',
+                    'whoapi_data' => $tianData
+                ];
+                $api_used = 'Tian WHOIS API (Fallback)';
+                $error_msg = '';
+            } else {
+                $tianErr = isset($tianData['error']) ? $tianData['error'] : 'Tian WHOIS API 查询失败';
+                logError("Tian WHOIS API 查询失败: $domain - $tianErr");
+                $error_msg = "RDAP 失败: {$rdapError}；WHOIS 兜底失败: {$fallbackErr}；Tian WHOIS API 失败: {$tianErr}";
+            }
         }
     }
 
-    $res = ['data' => $data, 'error' => $error_msg ?? '', 'api_used' => $api_used];
+    if ($data && empty($error_msg) && !$isIpTarget) {
+        $dnsSummary = dl_queryDnsSummary($domain);
+        if (!empty($dnsSummary)) {
+            if (!isset($data['whoapi_data']) || !is_array($data['whoapi_data'])) {
+                $data['whoapi_data'] = [];
+            }
+            $data['whoapi_data']['dns_records'] = $dnsSummary;
+        }
+    }
+
+    $res = [
+        'data' => $data,
+        'error' => $error_msg ?? '',
+        'api_used' => $api_used,
+        'cached' => false,
+        'cache_time' => time()
+    ];
     if (isset($cacheFile) && $cacheFile && $data && empty($error_msg)) {
         @file_put_contents($cacheFile, json_encode($res, JSON_UNESCAPED_UNICODE));
     }
