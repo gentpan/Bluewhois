@@ -1816,6 +1816,17 @@ a {
   transform: translate(-50%, -50%) translate(var(--brand-offset-x), var(--brand-offset-y)) scale(calc(var(--brand-scale) * 1.18));
 }
 
+/* Dark mode hover palette tuning (keep source SVG untouched) */
+[data-theme="dark"] .brand-logo-item:hover .brand-logo-image[src*="Namecom.svg"] {
+  /* white text + green accent (via hue-rotated inversion) */
+  filter: invert(1) hue-rotate(180deg) saturate(1.15) brightness(1.02);
+}
+
+[data-theme="dark"] .brand-logo-item:hover .brand-logo-image[src*="Gandi.svg"] {
+  /* pure white hover logo in dark theme */
+  filter: brightness(0) invert(1);
+}
+
 /* Specific brand icons with larger internal whitespace */
 .brand-logo-image[src*="Cloudflare.svg"] {
   --brand-scale: 1.14665;
@@ -1858,6 +1869,11 @@ a {
   --brand-offset-y: 0px;
   --brand-max-height: 30px;
   --brand-max-width: 132px;
+}
+
+[data-theme="dark"] .brand-logo-image[src*="Namecom.svg"] {
+  filter: grayscale(100%) saturate(0%) brightness(1.08) contrast(0.74);
+  opacity: 0.9;
 }
 
 .brand-logo-image[src*="NameCheap.svg"] {
