@@ -65,13 +65,13 @@
       "domain-input-placeholder": "输入域名或 IP，如：example.com / 1.1.1.1 / 2606:4700:4700::1111",
       "query-whois": "查询 WHOIS",
       querying: "查询中...",
-      "footer-desc": "BlueWhois 提供专业的域名 WHOIS 信息查询服务，结果快速、准确、完整。基于 WhoisXML API、WhoAPI 与 RDAP，支持全球域名查询。",
+      "footer-desc": "BlueWhois 提供专业的 IP 与域名 WHOIS 信息查询服务，结果快速、准确、完整。基于 WhoisXML API、WhoAPI 与 RDAP，支持全球查询。",
       "footer-quick-links": "快速链接",
       "footer-services": "服务",
       "footer-about": "关于",
       "footer-privacy": "隐私政策",
       "footer-terms": "使用条款",
-      "footer-powered": "BlueWhois 版权所有",
+      "footer-powered": "BlueWhois. All rights reserved.",
       "theme-toggle": "切换主题",
     },
     en: {
@@ -96,14 +96,15 @@
   };
 
   function getCurrentLang() {
-    return localStorage.getItem("lang") || "zh";
+    return "zh";
   }
 
   function setLang(lang) {
-    localStorage.setItem("lang", lang);
-    document.documentElement.setAttribute("lang", lang === "en" ? "en" : "zh-CN");
-    updatePageContent(lang);
-    updateLangButton(lang);
+    const fixedLang = "zh";
+    localStorage.setItem("lang", fixedLang);
+    document.documentElement.setAttribute("lang", "zh-CN");
+    updatePageContent(fixedLang);
+    updateLangButton(fixedLang);
   }
 
   function updateLangButton(lang) {
@@ -158,8 +159,19 @@
     );
     footerLinks.forEach((link) => {
       const text = link.textContent.trim();
-      if (text === "隐私政策" || text === "Privacy Policy") link.textContent = t["footer-privacy"];
-      else if (text === "使用条款" || text === "Terms of Use") link.textContent = t["footer-terms"];
+      if (text === "隐私政策" || text === "Privacy Policy") {
+        if (link.classList.contains("footer-legal-trigger")) {
+          link.innerHTML = '<i class="fas fa-user-shield" aria-hidden="true"></i>' + t["footer-privacy"];
+        } else {
+          link.textContent = t["footer-privacy"];
+        }
+      } else if (text === "使用条款" || text === "Terms of Use") {
+        if (link.classList.contains("footer-legal-trigger")) {
+          link.innerHTML = '<i class="fas fa-file-contract" aria-hidden="true"></i>' + t["footer-terms"];
+        } else {
+          link.textContent = t["footer-terms"];
+        }
+      }
     });
     const copyright = document.querySelector(".copyright");
     if (copyright) {
@@ -171,20 +183,11 @@
   }
 
   function initLang() {
-    const lang = getCurrentLang();
-    setLang(lang);
+    setLang("zh");
   }
 
   function initLangDropdown() {
-    const toggleBtn = document.getElementById("langToggle");
-    if (!toggleBtn) return;
-
-    toggleBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      const currentLang = getCurrentLang();
-      const nextLang = currentLang === "en" ? "zh" : "en";
-      setLang(nextLang);
-    });
+    return;
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -91,10 +91,10 @@ include __DIR__ . '/../header.php'; ?>
                 <h3><i class="fas fa-database"></i>数据来源</h3>
                 <ul class="api-guide-list">
                     <li><strong>whoAPI</strong><span><a href="https://whoapi.com/whois-api/" target="_blank" rel="noopener">Whois API</a></span></li>
-                    <li><strong>WhoisXML API</strong><span>付费模式，<a href="https://whois.whoisxmlapi.com/lookup" target="_blank" rel="noopener">WHOIS Lookup</a></span></li>
+                    <li><strong>WhoisXML API</strong><span><a href="https://whois.whoisxmlapi.com/lookup" target="_blank" rel="noopener">WHOIS Lookup</a></span></li>
                     <li><strong>RDAP 服务器列表</strong><span>从 <a href="https://data.iana.org/rdap/dns.json" target="_blank" rel="noopener">https://data.iana.org/rdap/dns.json</a> 下载，30 天缓存</span></li>
                     <li><strong>Public Suffix List</strong><span>从 <a href="https://publicsuffix.org/list/public_suffix_list.dat" target="_blank" rel="noopener">https://publicsuffix.org/list/public_suffix_list.dat</a> 下载，30 天缓存</span></li>
-                    <li><strong>IP 信息来源</strong><span>付费模式，<a href="https://www.maxmind.com/en/geoip-databases" target="_blank" rel="noopener">MaxMind GeoIP Databases</a></span></li>
+                    <li><strong>IP 信息来源</strong><span><a href="https://www.maxmind.com/en/geoip-databases" target="_blank" rel="noopener">MaxMind GeoIP Databases</a></span></li>
                 </ul>
             </section>
 

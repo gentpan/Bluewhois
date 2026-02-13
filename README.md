@@ -10,7 +10,7 @@ BlueWhois 是一个基于 PHP 的综合网络查询站点，支持 `DOMAIN / IPv
 - RDAP 优先，失败自动回退 WHOIS 兜底链路
 - 统一错误返回与前端状态展示
 - API 缓存与手动刷新
-- 内页路由：`/about`、`/contact`、`/api-docs`
+- 内页路由：`/about`、`/contact`、`/api-docs`（由伪静态映射到 `pages/*.php`）
 
 ## Project Structure
 
@@ -23,7 +23,6 @@ BlueWhois 是一个基于 PHP 的综合网络查询站点，支持 `DOMAIN / IPv
 ├── config.php                # 配置项
 ├── header.php / footer.php   # 公共布局
 ├── pages/                    # 内页（iana / cctlds / about / contact / api-docs）
-├── about/ contact/ api-docs/ # 目录路由入口（伪静态友好）
 ├── assets/
 │   ├── css/
 │   ├── js/
@@ -46,7 +45,7 @@ BlueWhois 是一个基于 PHP 的综合网络查询站点，支持 `DOMAIN / IPv
 ### 1) 本地启动
 
 ```bash
-php -S 127.0.0.1:8000 -t .
+php -S 127.0.0.1:8000
 ```
 
 访问示例：
@@ -55,8 +54,8 @@ php -S 127.0.0.1:8000 -t .
 - `http://127.0.0.1:8000/about`
 - `http://127.0.0.1:8000/contact`
 - `http://127.0.0.1:8000/api-docs`
-- `http://127.0.0.1:8000/bluewhois.com`
-- `http://127.0.0.1:8000/1.1.1.1`
+- `http://127.0.0.1:8000/index.php?domain=bluewhois.com`
+- `http://127.0.0.1:8000/index.php?domain=1.1.1.1`
 
 ### 2) API 调用
 
@@ -75,7 +74,7 @@ curl -H "Accept: application/json" \
   "http://127.0.0.1:8000/api/2606:4700:4700::1111"
 ```
 
-IP 地理信息（ip.sb 专用）：
+IP 地理信息（IPWest 模式）：
 
 ```bash
 curl -H "Accept: application/json" \
@@ -89,25 +88,29 @@ curl -H "Accept: application/json" \
   "http://127.0.0.1:8000/whois.php?mode=api&domain=bluewhois.com"
 ```
 
-## Nginx Pseudo-static (Recommended)
+## Nginx Rewrite (Recommended)
 
 ```nginx
-location / {
-    try_files $uri $uri/ @bluewhois_router;
+# 内页路由：/about /contact /api-docs
+location = /about { rewrite ^ /pages/about.php last; }
+location = /contact { rewrite ^ /pages/contact.php last; }
+location = /api-docs { rewrite ^ /pages/api-docs.php last; }
+
+# API：/api/ip/{ip}
+location ~ ^/api/ip/(.+)$ {
+    rewrite ^/api/ip/(.+)$ /api/index.php?mode=ip&target=$1 last;
 }
 
-location @bluewhois_router {
-    # IP Geo API: /api/ip/{ip}
-    rewrite ^/api/ip/([^/]+)/?$ /api/index.php?mode=ipgeo&ip=$1&$args last;
+# API：/api/{target}
+location ~ ^/api/(.+)$ {
+    rewrite ^/api/(.+)$ /api/index.php?target=$1 last;
+}
 
-    # API: /api/{target}
-    rewrite ^/api/([^/]+)/?$ /api/index.php?target=$1&$args last;
-
-    # 兼容旧 API（可选保留）: /{target}/api
-    rewrite ^/([^/]+)/api/?$ /api/index.php?target=$1&$args last;
-
-    # 页面直查: /{target}
-    rewrite ^/([^/]+)/?$ /index.php?domain=$1&$args last;
+# 结果页直查：/{target}
+location ~ ^/([^/]+)$ {
+    if ($1 !~* "^(about|contact|api-docs|api|assets|pages|favicon\\.ico)$") {
+        rewrite ^/([^/]+)$ /index.php?domain=$1 last;
+    }
 }
 
 location ~ \.php$ {
@@ -115,12 +118,6 @@ location ~ \.php$ {
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_pass 127.0.0.1:9000;
 }
-```
-
-如果你只保留一种 API 形式，请删除：
-
-```nginx
-rewrite ^/([^/]+)/api/?$ /api/index.php?target=$1&$args last;
 ```
 
 ## Query Strategy
@@ -136,7 +133,8 @@ rewrite ^/([^/]+)/api/?$ /api/index.php?target=$1&$args last;
 - API 文档重构：路径、示例、数据源说明统一
 - 新增 API 缓存标识与刷新机制
 - 优化内页与卡片结构样式一致性
-- 新增目录路由入口：`/about`、`/contact`、`/api-docs`
+- 去除根目录重复页面入口，统一由伪静态映射到 `pages/`
+- Footer 字体体系更新：Outfit / Noto Sans SC / Cairo Play
 
 ## License
 

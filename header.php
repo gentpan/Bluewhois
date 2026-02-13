@@ -45,14 +45,6 @@ if ($normalizedPath === '' || $normalizedPath === 'index.php') {
                     </svg>
                 </a>
                 <div class="top-bar-actions">
-                    <button id="langToggle" class="lang-toggle-btn" aria-label="切换语言" title="切换语言 / Switch Language" type="button" data-lang="zh">
-                        <svg t="1771006447953" class="icon lang-icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="18" height="18" aria-hidden="true">
-                            <path class="lang-icon-en" d="M786.974 552.569l23.387 63.453h22.453l-77.65-208.045h-22.45l-75.777 208.045h22.453l22.451-63.453h85.133z m-46.779-108.184c1.243-3.459 2.807-8.322 4.68-14.563 1.87 6.241 3.112 11.104 3.744 14.563l30.869 88.422h-70.162l30.869-88.422z"></path>
-                            <path class="lang-icon-frame" d="M903.02 314.18H609.406l-4.038 17.586H903.02c22.833 0 41.411 18.597 41.411 41.453v277.563c0 22.856-18.578 41.452-41.411 41.452H522.513l-4.044 17.586H903.02c32.522 0 58.98-26.479 58.98-59.038V373.218c0-32.554-26.458-59.038-58.98-59.038z"></path>
-                            <path class="lang-icon-zh-glyph" d="M325.254 461.548h77.941v63.456h-77.941zM226.528 461.548h77.942v63.456h-77.942z"></path>
-                            <path class="lang-icon-zh-bg" d="M112.197 285C84.474 285 62 307.495 62 335.245v353.51C62 716.508 84.474 739 112.197 739h399.566l104.352-454H112.197z m310.744 272.251h-19.746v-13.522h-77.941v92.58H304.47v-92.58h-77.942v13.522h-19.745V442.825h97.687v-55.132h20.784v55.132h97.687v114.426z"></path>
-                        </svg>
-                    </button>
                     <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="打开菜单">
                         <i class="fas fa-bars"></i>
                     </button>

@@ -64,7 +64,7 @@ if ($matchedIp !== null) {
     api_output_json([
         'success' => true,
         'mode' => 'ip_geo',
-        'provider' => 'ip.sb',
+        'provider' => 'ipwest.com',
         'ip' => $ip,
         'data' => $geo,
     ]);

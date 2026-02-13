@@ -6,16 +6,7 @@
     <div class="footer-main">
         <div class="footer-logo-section">
             <div class="footer-logo-text">BlueWhois</div>
-            <p class="footer-description">BlueWhois 提供专业的域名 WHOIS 信息查询服务，结果快速、准确、完整。基于 WhoisXML API、WhoAPI 与 RDAP，支持全球域名查询。</p>
-        </div>
-        <div class="footer-column">
-            <h4 class="footer-column-title">快速链接</h4>
-            <ul class="footer-links">
-                <li><a href="<?= $basePath ?>index.php"><i class="fas fa-house" aria-hidden="true"></i>首页</a></li>
-                <li><a href="<?= $basePath ?>api-docs"><i class="fas fa-book" aria-hidden="true"></i>API 文档</a></li>
-                <li><a href="<?= $basePath ?>about"><i class="fas fa-circle-info" aria-hidden="true"></i>关于我们</a></li>
-                <li><a href="<?= $basePath ?>contact"><i class="fas fa-envelope" aria-hidden="true"></i>联系我们</a></li>
-            </ul>
+            <p class="footer-description">BlueWhois 提供专业的 IP 与域名 WHOIS 信息查询服务，结果快速、准确、完整。基于 WhoisXML API、WhoAPI 与 RDAP，支持全球查询。</p>
         </div>
         <div class="footer-column">
             <h4 class="footer-column-title">服务</h4>
@@ -23,21 +14,27 @@
                 <li><a href="<?= $basePath ?>pages/iana.php"><i class="fas fa-database" aria-hidden="true"></i>IANA 数据库</a></li>
                 <li><a href="<?= $basePath ?>pages/cctlds.php"><i class="fas fa-flag" aria-hidden="true"></i>ccTLDs 列表</a></li>
                 <li><a href="<?= $basePath ?>api-docs"><i class="fas fa-plug" aria-hidden="true"></i>API 接口</a></li>
-                <li><a href="#"><i class="fas fa-circle-question" aria-hidden="true"></i>帮助文档</a></li>
+                <li><a href="https://data.iana.org/rdap/dns.json" target="_blank" rel="noopener"><i class="fas fa-server" aria-hidden="true"></i>RDAP 列表</a></li>
             </ul>
         </div>
         <div class="footer-column">
             <h4 class="footer-column-title">关于</h4>
             <ul class="footer-links">
                 <li><a href="<?= $basePath ?>about"><i class="fas fa-building" aria-hidden="true"></i>关于我们</a></li>
-                <li><button type="button" class="footer-legal-trigger" data-legal-modal="privacy"><i class="fas fa-user-shield" aria-hidden="true"></i>隐私政策</button></li>
-                <li><button type="button" class="footer-legal-trigger" data-legal-modal="terms"><i class="fas fa-file-contract" aria-hidden="true"></i>使用条款</button></li>
                 <li><a href="<?= $basePath ?>contact"><i class="fas fa-headset" aria-hidden="true"></i>联系我们</a></li>
+            </ul>
+        </div>
+        <div class="footer-column">
+            <h4 class="footer-column-title">资源</h4>
+            <ul class="footer-links">
+                <li><a href="https://github.com/gentpan/Bluewhois" target="_blank" rel="noopener"><i class="fab fa-github" aria-hidden="true"></i>GitHub 仓库</a></li>
+                <li><a href="mailto:support@bluewhois.com"><i class="fas fa-life-ring" aria-hidden="true"></i>技术支持</a></li>
+                <li><a href="https://xifeng.net" target="_blank" rel="noopener"><i class="fas fa-wind" aria-hidden="true"></i>西风</a></li>
             </ul>
         </div>
     </div>
     <div class="footer-bottom">
-        <div class="copyright">© <?php echo date('Y'); ?> BlueWhois. All rights reserved.</div>
+        <div class="copyright">© <?php echo date('Y'); ?> <span class="copyright-brand">BlueWhois</span>. All rights reserved.</div>
         <nav class="footer-nav">
             <button type="button" class="footer-legal-trigger" data-legal-modal="privacy"><i class="fas fa-user-shield" aria-hidden="true"></i>隐私政策</button>
             <button type="button" class="footer-legal-trigger" data-legal-modal="terms"><i class="fas fa-file-contract" aria-hidden="true"></i>使用条款</button>
@@ -57,7 +54,7 @@
     <div class="legal-modal-overlay" data-legal-close></div>
     <div class="legal-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="legal-modal-privacy-title">
         <div class="legal-modal-header">
-            <h3 id="legal-modal-privacy-title"><i class="fas fa-user-shield" aria-hidden="true"></i>隐私政策</h3>
+            <h3 id="legal-modal-privacy-title">隐私政策</h3>
             <button type="button" class="legal-modal-close" aria-label="关闭" data-legal-close>&times;</button>
         </div>
         <div class="legal-modal-body">
@@ -104,7 +101,7 @@
     <div class="legal-modal-overlay" data-legal-close></div>
     <div class="legal-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="legal-modal-terms-title">
         <div class="legal-modal-header">
-            <h3 id="legal-modal-terms-title"><i class="fas fa-file-contract" aria-hidden="true"></i>使用条款</h3>
+            <h3 id="legal-modal-terms-title">使用条款</h3>
             <button type="button" class="legal-modal-close" aria-label="关闭" data-legal-close>&times;</button>
         </div>
         <div class="legal-modal-body">

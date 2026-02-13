@@ -1,4 +1,7 @@
 @import url("https://fonts.bluecdn.com/css2?family=Ubuntu:wght@500;700&display=swap");
+@import url("https://fonts.bluecdn.com/css2?family=Outfit:wght@400;500;600;700&display=swap");
+@import url("https://fonts.bluecdn.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap");
+@import url("https://fonts.bluecdn.com/css2?family=Cairo+Play:wght@700;900&display=swap");
 
 /* ==================== CSS变量定义 ==================== */
 :root {
@@ -70,9 +73,9 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text",
-    "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    "WenQuanYi Micro Hei", Arial, sans-serif;
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro SC",
+    "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "WenQuanYi Micro Hei", Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -533,8 +536,12 @@ a {
 
 .hero .subtitle {
   margin: 0;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-secondary);
   font-size: 14px;
+}
+
+[data-theme="dark"] .hero .subtitle {
+  color: #9ca3af;
 }
 
 @media (max-width: 520px) {
@@ -1967,6 +1974,10 @@ a {
   background: #0a0a0a;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: 20px;
+  font-family: "Outfit", "Noto Sans SC", -apple-system, BlinkMacSystemFont,
+    "SF Pro SC", "SF Pro Text", "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", Arial,
+    sans-serif;
 }
 
 .footer-main {
@@ -1983,8 +1994,9 @@ a {
 }
 
 .footer-logo-text {
+  font-family: "Cairo Play", "Outfit", "Noto Sans SC", sans-serif;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 900;
   color: #ffffff;
   margin-bottom: 16px;
 }
@@ -2019,6 +2031,7 @@ a {
   color: #999999;
   text-decoration: none;
   font-size: 14px;
+  font-family: "PaperMono", "SF Mono", "Monaco", "Inconsolata", monospace;
   transition: var(--transition);
 }
 
@@ -2056,6 +2069,11 @@ a {
   color: #666666;
 }
 
+.copyright-brand {
+  font-family: "Cairo Play", "Outfit", "Noto Sans SC", sans-serif;
+  font-weight: 900;
+}
+
 .footer-nav {
   display: flex;
   gap: 32px;
@@ -2070,7 +2088,12 @@ a {
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  transition: var(--transition);
+  font-family: "PaperMono", "SF Mono", "Monaco", "Inconsolata", monospace;
+  transition: color 0.2s ease;
+}
+
+.footer-nav a.footer-github-link {
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .footer-nav .footer-legal-trigger {
@@ -2103,11 +2126,14 @@ a {
   font-size: 12px;
 }
 
-.footer-github-link {
+.footer-github-link,
+.footer-theme-toggle {
   border: none;
   background: transparent;
-  width: auto;
-  height: auto;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
   padding: 0;
   border-radius: 0;
   outline: none;
@@ -2115,17 +2141,32 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 20px;
   color: #999999;
   text-decoration: none;
   line-height: 1;
-  font-size: 16px;
   transform-origin: center;
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.footer-github-link:hover {
+.footer-nav .footer-github-link i {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  display: block;
+  line-height: 1;
+}
+
+.footer-theme-toggle .theme-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.footer-github-link:hover,
+.footer-theme-toggle:hover {
   color: #ffffff;
-  transform: scale(1.5);
+  transform: scale(1.2);
 }
 
 .footer-github-link:focus,
@@ -2135,39 +2176,15 @@ a {
 }
 
 .footer-theme-toggle {
-  background: transparent;
-  border: none;
-  color: #999999;
-  padding: 0;
-  border-radius: 0;
-  outline: none;
-  box-shadow: none;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
-  transition: transform 0.2s ease, color 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  height: auto;
-  transform-origin: center;
-}
-
-.footer-theme-toggle:hover {
-  color: #ffffff;
-  transform: scale(1.5);
 }
 
 .footer-theme-toggle:focus,
 .footer-theme-toggle:focus-visible {
   outline: none;
   box-shadow: none;
-}
-
-.footer-theme-toggle .theme-icon {
-  width: 16px;
-  height: 16px;
 }
 
 /* ==================== 法务弹窗 ==================== */
@@ -2845,6 +2862,6 @@ a {
 
 /* ==================== 主题图标 ==================== */
 .theme-icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
