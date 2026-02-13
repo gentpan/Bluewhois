@@ -1,6 +1,21 @@
 <?php
 // 功能函数库：包含所有工具函数和 WHOIS 查询函数
-include_once __DIR__ . '/config.php';
+$configFile = __DIR__ . '/config.php';
+if (is_file($configFile)) {
+    include_once $configFile;
+} else {
+    // 配置缺失兜底，避免直接 Warning/Fatal 污染 API 输出
+    if (!defined('WHOAPI_KEY')) define('WHOAPI_KEY', '');
+    if (!defined('WHOISXML_API_KEY')) define('WHOISXML_API_KEY', '');
+    if (!defined('WHOISXML_API_ENDPOINT')) define('WHOISXML_API_ENDPOINT', 'https://www.whoisxmlapi.com/whoisserver/WhoisService');
+    if (!defined('CACHE_TTL')) define('CACHE_TTL', 3600);
+    if (!defined('CACHE_DIR')) define('CACHE_DIR', __DIR__ . '/cache/');
+    if (!is_dir(CACHE_DIR)) {
+        @mkdir(CACHE_DIR, 0755, true);
+    }
+    if (!defined('LOG_ERRORS')) define('LOG_ERRORS', false);
+    if (!defined('LOG_FILE')) define('LOG_FILE', __DIR__ . '/logs/error.log');
+}
 
 // ===== 通用工具函数 =====
 
@@ -1452,7 +1467,6 @@ function dl_normalizeIpGeo($raw, $source)
     }
 
     $geo = [
-        'source' => $source,
         'ip' => (string)($raw['ip'] ?? $raw['query'] ?? ''),
         'country' => (string)($raw['country'] ?? ''),
         'country_code' => strtoupper((string)($raw['country_code'] ?? $raw['countryCode'] ?? '')),

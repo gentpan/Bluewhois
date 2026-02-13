@@ -39,9 +39,23 @@ function whois_handle_api()
         }
         $output_data = ['success' => false, 'error' => $result['error'], 'domain' => $domain];
     } elseif ($result['data']) {
+        $verbose = isset($_GET['verbose']) && (string)$_GET['verbose'] === '1';
+        $apiData = $result['data'];
+
+        // 兼容旧缓存：对外不暴露 IP 情报源字段
+        if (isset($apiData['whoapi_data']['ip_geo']) && is_array($apiData['whoapi_data']['ip_geo'])) {
+            unset($apiData['whoapi_data']['ip_geo']['source']);
+        }
+        // 默认返回精简结构，避免超大 raw 文本影响可读性与带宽
+        if (!$verbose) {
+            unset($apiData['whois']);
+            if (isset($apiData['whoapi_data']) && is_array($apiData['whoapi_data'])) {
+                unset($apiData['whoapi_data']['whois_raw']);
+            }
+        }
         $output_data = [
             'success' => true,
-            'data' => $result['data'],
+            'data' => $apiData,
             'api_used' => $result['api_used'],
             'domain' => $domain,
             'cached' => !empty($result['cached']),

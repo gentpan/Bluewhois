@@ -1,13 +1,12 @@
 <?php
-include 'config.php';
-include 'function.php';
+include_once __DIR__ . '/function.php';
 
 // 支持 /{target}/api 风格 API：例如 /xifeng.com/api 或 /1.1.1.1/api
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
 if (preg_match('#^/([^/]+)/api/?$#', $requestPath, $m)) {
-    $target = dl_normalizeQueryTarget(urldecode((string)$m[1]));
+        $target = dl_normalizeQueryTarget(urldecode((string)$m[1]));
     if (dl_validateQueryTarget($target)) {
-        include 'whois.php';
+        include_once __DIR__ . '/whois.php';
         $_GET['domain'] = $target;
         $_GET['mode'] = 'api';
         whois_handle_api();
@@ -26,7 +25,7 @@ if (empty($domain)) {
 
 // 统一使用首页查询容器渲染（含路径自动查询）
 $page_title = 'BlueWhois - WHOIS 域名查询';
-include 'header.php';
+include __DIR__ . '/header.php';
 ?>
 
 <!-- 查询区域（始终显示） -->
@@ -174,4 +173,4 @@ include 'header.php';
 $basePath = getBasePath();
 ?>
 
-<?php include 'footer.php'; ?>
+<?php include __DIR__ . '/footer.php'; ?>
