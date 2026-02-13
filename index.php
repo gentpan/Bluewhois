@@ -2,6 +2,19 @@
 include 'config.php';
 include 'function.php';
 
+// 支持 /{target}/api 风格 API：例如 /xifeng.com/api 或 /1.1.1.1/api
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('#^/([^/]+)/api/?$#', $requestPath, $m)) {
+    $target = dl_normalizeQueryTarget(urldecode((string)$m[1]));
+    if (dl_validateQueryTarget($target)) {
+        include 'whois.php';
+        $_GET['domain'] = $target;
+        $_GET['mode'] = 'api';
+        whois_handle_api();
+        exit;
+    }
+}
+
 // 检查是否是直接访问域名（如 domain.com 或 126.com）
 // 如果不是通过 GET 参数传递，尝试从 URL 路径中提取
 $domain = trim($_GET['domain'] ?? '');
@@ -11,17 +24,7 @@ if (empty($domain)) {
     $domain = extractDomainFromPath('api/');
 }
 
-// 如果有域名参数，直接显示结果页面
-if (!empty($domain)) {
-    // 调用页面渲染函数
-    include 'whois.php';
-    $_GET['domain'] = $domain;
-    $_GET['mode'] = 'page';
-    whois_handle_page();
-    exit;
-}
-
-// 没有域名参数，显示首页
+// 统一使用首页查询容器渲染（含路径自动查询）
 $page_title = 'BlueWhois - WHOIS 域名查询';
 include 'header.php';
 ?>
@@ -31,7 +34,7 @@ include 'header.php';
     <div class="query-card">
         <form class="query-form" data-type="whois">
             <div class="form-group">
-                <input type="text" name="domain" id="domain-input" placeholder="输入域名，如：example.com" value="<?= htmlspecialchars($domain) ?>">
+                <input type="text" name="domain" id="domain-input" placeholder="输入域名或 IP，如：example.com / 1.1.1.1 / 2606:4700:4700::1111" value="<?= htmlspecialchars($domain) ?>">
                 <!-- 域名补全下拉列表 -->
                 <div id="domain-suggestions" class="hidden">
                     <!-- 建议项将通过 JavaScript 动态插入 -->
@@ -89,70 +92,77 @@ include 'header.php';
             <h2 class="section-title">友情链接</h2>
             <p class="section-subtitle">推荐的相关资源和服务</p>
         </div>
+        <div class="brand-logo-grid">
+            <a href="https://www.aliyun.com" target="_blank" class="brand-logo-item" title="阿里云">
+                <img src="<?= $basePath ?>assets/images/brands/aliyun.svg" alt="阿里云" class="brand-logo-image">
+            </a>
+            <a href="https://cloud.tencent.com" target="_blank" class="brand-logo-item" title="腾讯云">
+                <img src="<?= $basePath ?>assets/images/brands/TencentCloud.svg" alt="腾讯云" class="brand-logo-image">
+            </a>
+            <a href="https://www.dnspod.cn" target="_blank" class="brand-logo-item" title="DNSPod">
+                <img src="<?= $basePath ?>assets/images/brands/DNSPOD.svg" alt="DNSPod" class="brand-logo-image">
+            </a>
+            <a href="https://www.cloudflare.com" target="_blank" class="brand-logo-item" title="Cloudflare">
+                <img src="<?= $basePath ?>assets/images/brands/Cloudflare.svg" alt="Cloudflare" class="brand-logo-image">
+            </a>
+            <a href="https://www.name.com" target="_blank" class="brand-logo-item" title="Name.com">
+                <img src="<?= $basePath ?>assets/images/brands/Namecom.svg" alt="Name.com" class="brand-logo-image">
+            </a>
+            <a href="https://www.godaddy.com" target="_blank" class="brand-logo-item" title="GoDaddy">
+                <img src="<?= $basePath ?>assets/images/brands/GoDaddy.svg" alt="GoDaddy" class="brand-logo-image">
+            </a>
+            <a href="https://www.gandi.net" target="_blank" class="brand-logo-item" title="Gandi">
+                <img src="<?= $basePath ?>assets/images/brands/Gandi.svg" alt="Gandi" class="brand-logo-image">
+            </a>
+        </div>
         <div class="friendship-links-scroll">
-            <a href="https://www.iana.org/" target="_blank" class="friend-link-item" title="IANA">
-                <img alt="IANA" class="friend-link-icon" data-domain="iana.org">
-                <span class="friend-link-name">IANA</span>
+            <a href="https://www.quyu.net" target="_blank" class="friend-link-item" title="趣域">
+                <img alt="趣域" class="friend-link-icon" data-domain="quyu.net">
+                <span class="friend-link-name">趣域</span>
             </a>
-            <a href="https://www.icann.org/" target="_blank" class="friend-link-item" title="ICANN">
-                <img alt="ICANN" class="friend-link-icon" data-domain="icann.org">
-                <span class="friend-link-name">ICANN</span>
-            </a>
-            <a href="https://www.aliyun.com" target="_blank" class="friend-link-item" title="阿里云">
-                <img alt="阿里云" class="friend-link-icon" data-domain="aliyun.com">
-                <span class="friend-link-name">阿里云</span>
-            </a>
-            <a href="https://cloud.tencent.com" target="_blank" class="friend-link-item" title="腾讯云">
-                <img alt="腾讯云" class="friend-link-icon" data-domain="cloud.tencent.com">
-                <span class="friend-link-name">腾讯云</span>
-            </a>
-            <a href="https://www.name.com" target="_blank" class="friend-link-item" title="Name.com">
-                <img alt="Name.com" class="friend-link-icon" data-domain="name.com">
-                <span class="friend-link-name">Name</span>
-            </a>
-            <a href="https://www.godaddy.com" target="_blank" class="friend-link-item" title="GoDaddy">
-                <img alt="GoDaddy" class="friend-link-icon" data-domain="godaddy.com">
-                <span class="friend-link-name">GoDaddy</span>
-            </a>
-            <a href="https://www.namecheap.com" target="_blank" class="friend-link-item" title="Namecheap">
-                <img alt="Namecheap" class="friend-link-icon" data-domain="namecheap.com">
-                <span class="friend-link-name">Namecheap</span>
-            </a>
-            <a href="https://www.namesilo.com" target="_blank" class="friend-link-item" title="NameSilo">
-                <img alt="NameSilo" class="friend-link-icon" data-domain="namesilo.com">
-                <span class="friend-link-name">NameSilo</span>
+            <a href="https://www.west.cn" target="_blank" class="friend-link-item" title="西部数码">
+                <img alt="西部数码" class="friend-link-icon" data-domain="west.cn">
+                <span class="friend-link-name">西部数码</span>
             </a>
             <a href="https://www.dynadot.com" target="_blank" class="friend-link-item" title="Dynadot">
                 <img alt="Dynadot" class="friend-link-icon" data-domain="dynadot.com">
                 <span class="friend-link-name">Dynadot</span>
             </a>
-            <a href="https://porkbun.com" target="_blank" class="friend-link-item" title="Porkbun">
-                <img alt="Porkbun" class="friend-link-icon" data-domain="porkbun.com">
-                <span class="friend-link-name">Porkbun</span>
-            </a>
-            <a href="https://www.cloudflare.com" target="_blank" class="friend-link-item" title="Cloudflare">
-                <img alt="Cloudflare" class="friend-link-icon" data-domain="cloudflare.com">
-                <span class="friend-link-name">Cloudflare</span>
-            </a>
-            <a href="https://www.gandi.net" target="_blank" class="friend-link-item" title="Gandi">
-                <img alt="Gandi" class="friend-link-icon" data-domain="gandi.net">
-                <span class="friend-link-name">Gandi</span>
-            </a>
-            <a href="https://www.namebeta.com" target="_blank" class="friend-link-item" title="NameBeta">
+            <a href="https://namebeta.com" target="_blank" class="friend-link-item" title="NameBeta">
                 <img alt="NameBeta" class="friend-link-icon" data-domain="namebeta.com">
                 <span class="friend-link-name">NameBeta</span>
             </a>
-            <a href="https://ip.sb" target="_blank" class="friend-link-item" title="IP查询">
-                <img alt="IP查询" class="friend-link-icon" data-domain="ip.sb">
-                <span class="friend-link-name">IP查询</span>
+            <a href="https://ip.sb" target="_blank" class="friend-link-item" title="IP.SB">
+                <img alt="IP.SB" class="friend-link-icon" data-domain="ip.sb">
+                <span class="friend-link-name">IP.SB</span>
             </a>
-            <a href="https://www.xifeng.net" target="_blank" class="friend-link-item" title="西风">
-                <img alt="西风" class="friend-link-icon" data-domain="xifeng.net">
-                <span class="friend-link-name">西风</span>
+            <a href="https://www.icann.org" target="_blank" class="friend-link-item" title="ICANN">
+                <img alt="ICANN" class="friend-link-icon" data-domain="icann.org">
+                <span class="friend-link-name">ICANN</span>
             </a>
-            <a href="https://domain.ls" target="_blank" class="friend-link-item" title="域名列表">
-                <img alt="域名列表" class="friend-link-icon" data-domain="domain.ls">
-                <span class="friend-link-name">域名列表</span>
+            <a href="https://www.iana.org" target="_blank" class="friend-link-item" title="IANA">
+                <img alt="IANA" class="friend-link-icon" data-domain="iana.org">
+                <span class="friend-link-name">IANA</span>
+            </a>
+            <a href="https://rdap.ss/" target="_blank" class="friend-link-item" title="RDAP.SS">
+                <img alt="RDAP.SS" class="friend-link-icon" data-domain="rdap.ss">
+                <span class="friend-link-name">RDAP.SS</span>
+            </a>
+            <a href="https://dalao.net" target="_blank" class="friend-link-item" title="大佬论坛">
+                <img alt="大佬论坛" class="friend-link-icon" data-domain="dalao.net">
+                <span class="friend-link-name">大佬论坛</span>
+            </a>
+            <a href="https://www.namecheap.com" target="_blank" class="friend-link-item" title="Namecheap">
+                <img alt="Namecheap" class="friend-link-icon" data-domain="namecheap.com">
+                <span class="friend-link-name">Namecheap</span>
+            </a>
+            <a href="https://www.ename.net" target="_blank" class="friend-link-item" title="易名">
+                <img alt="易名" class="friend-link-icon" data-domain="ename.net">
+                <span class="friend-link-name">易名</span>
+            </a>
+            <a href="https://www.bluehost.com" target="_blank" class="friend-link-item" title="Bluehost">
+                <img alt="Bluehost" class="friend-link-icon" data-domain="bluehost.com">
+                <span class="friend-link-name">Bluehost</span>
             </a>
         </div>
     </section>

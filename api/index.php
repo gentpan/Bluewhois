@@ -13,7 +13,7 @@ if (empty($domain)) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'success' => false, 
-        'error' => '请提供域名。格式: /api/domain.com'
+        'error' => '请提供查询目标。格式: /api/example.com 或 /1.1.1.1/api'
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
 }

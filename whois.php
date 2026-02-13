@@ -16,20 +16,21 @@ function whois_handle_api()
         whois_output_json($error_data);
         return;
     }
-    $domain = dl_normalizeDomain($_GET['domain'] ?? '');
+    $domain = dl_normalizeQueryTarget($_GET['domain'] ?? ($_GET['target'] ?? ($_GET['ip'] ?? '')));
     if (empty($domain)) {
         http_response_code(400);
-        $error_data = ['success' => false, 'error' => '请输入要查询的域名'];
+        $error_data = ['success' => false, 'error' => '请输入要查询的域名或 IP'];
         whois_output_json($error_data);
         return;
     }
-    if (!dl_validateDomain($domain)) {
+    if (!dl_validateQueryTarget($domain)) {
         http_response_code(400);
-        $error_data = ['success' => false, 'error' => '域名格式不正确'];
+        $error_data = ['success' => false, 'error' => '输入格式不正确（仅支持域名、IPv4、IPv6）'];
         whois_output_json($error_data);
         return;
     }
-    $result = dl_queryWhois($domain);
+    $forceRefresh = isset($_GET['refresh']) && (string)$_GET['refresh'] === '1';
+    $result = dl_queryWhois($domain, $forceRefresh);
     if ($result['error']) {
         if (strpos($result['error'], '未注册') !== false) {
             http_response_code(404);
@@ -38,7 +39,14 @@ function whois_handle_api()
         }
         $output_data = ['success' => false, 'error' => $result['error'], 'domain' => $domain];
     } elseif ($result['data']) {
-        $output_data = ['success' => true, 'data' => $result['data'], 'api_used' => $result['api_used'], 'domain' => $domain];
+        $output_data = [
+            'success' => true,
+            'data' => $result['data'],
+            'api_used' => $result['api_used'],
+            'domain' => $domain,
+            'cached' => !empty($result['cached']),
+            'cache_time' => $result['cache_time'] ?? null
+        ];
     } else {
         http_response_code(502);
         $output_data = ['success' => false, 'error' => '无法获取域名 WHOIS 信息', 'domain' => $domain];
@@ -527,15 +535,15 @@ function whois_handle_page()
         die('错误：请求过于频繁，请稍后重试');
     }
 
-    $domain = dl_normalizeDomain($_GET['domain'] ?? '');
+    $domain = dl_normalizeQueryTarget($_GET['domain'] ?? '');
     if (empty($domain)) {
         http_response_code(400);
-        die('错误：请输入要查询的域名');
+        die('错误：请输入要查询的域名或 IP');
     }
-    if (!dl_validateDomain($domain)) {
+    if (!dl_validateQueryTarget($domain)) {
         http_response_code(400);
         logError("无效的域名输入: $domain");
-        die('错误：域名格式不正确');
+        die('错误：输入格式不正确（仅支持域名、IPv4、IPv6）');
     }
 
     $result = dl_queryWhois($domain);
