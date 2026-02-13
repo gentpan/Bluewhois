@@ -15,7 +15,7 @@
 }
 
 .hero .subtitle {
-  color: var(--accent-black-light);
+  color: var(--text-secondary) !important;
 }
 
 .hero h1 .page-icon {
@@ -36,7 +36,7 @@
 }
 
 [data-theme="dark"] .hero .subtitle {
-  color: var(--blue-soft) !important;
+  color: #9ca3af !important;
 }
 
 [data-theme="dark"] .hero h1 .page-icon {
@@ -288,7 +288,7 @@
 
 .api-section-subtitle {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-secondary) !important;
 }
 
 .api-info-grid {
@@ -468,7 +468,8 @@
 }
 
 .api-guide-list.compact li {
-  grid-template-columns: minmax(100px, 140px) 1fr;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
 }
 
 .api-guide-note {
