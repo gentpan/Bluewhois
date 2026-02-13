@@ -75,6 +75,13 @@ curl -H "Accept: application/json" \
   "http://127.0.0.1:8000/api/2606:4700:4700::1111"
 ```
 
+IP 地理信息（ip.sb 专用）：
+
+```bash
+curl -H "Accept: application/json" \
+  "http://127.0.0.1:8000/api/ip/1.1.1.1"
+```
+
 兼容调用：
 
 ```bash
@@ -90,6 +97,9 @@ location / {
 }
 
 location @bluewhois_router {
+    # IP Geo API: /api/ip/{ip}
+    rewrite ^/api/ip/([^/]+)/?$ /api/index.php?mode=ipgeo&ip=$1&$args last;
+
     # API: /api/{target}
     rewrite ^/api/([^/]+)/?$ /api/index.php?target=$1&$args last;
 
