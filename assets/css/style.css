@@ -1,7 +1,7 @@
-@import url("https://fonts.bluecdn.com/css2?family=Ubuntu:wght@500;700&display=swap");
-@import url("https://fonts.bluecdn.com/css2?family=Outfit:wght@400;500;600;700&display=swap");
-@import url("https://fonts.bluecdn.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap");
-@import url("https://fonts.bluecdn.com/css2?family=Cairo+Play:wght@700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cairo+Play:wght@700;900&display=swap");
 
 /* ==================== CSS变量定义 ==================== */
 :root {
