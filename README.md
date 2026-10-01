@@ -138,4 +138,4 @@ location ~ \.php$ {
 
 ## License
 
-Private/Internal use by repository owner.
+MIT，见 [LICENSE](LICENSE)。
